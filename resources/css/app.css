@@ -1,0 +1,161 @@
+@import 'tailwindcss';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+@source '../**/*.blade.php';
+@source '../**/*.js';
+
+@theme {
+    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+        'Segoe UI Symbol', 'Noto Color Emoji';
+
+    /* UAE Design System Colors */
+    --color-uae-gold-50: #f5f0e6;
+    --color-uae-gold-100: #e8dcc3;
+    --color-uae-gold-200: #d4c19a;
+    --color-uae-gold-300: #b68a35;
+    --color-uae-gold-400: #a67a2a;
+    --color-uae-gold-500: #8f6a24;
+    --color-uae-gold-600: #785a1f;
+    --color-uae-gold-700: #614a19;
+    --color-uae-gold-800: #4a3a13;
+    --color-uae-gold-900: #332a0d;
+    --color-uae-gold-950: #1c1507;
+
+    --color-iron-50: #f5f5f5;
+    --color-iron-100: #e5e5e5;
+    --color-iron-200: #d4d4d4;
+    --color-iron-300: #a3a3a3;
+    --color-iron-400: #737373;
+    --color-iron-500: #414042;
+    --color-iron-600: #373638;
+    --color-iron-700: #2d2c2e;
+    --color-iron-800: #232224;
+    --color-iron-900: #19181a;
+    --color-iron-950: #0f0e10;
+
+    --color-silver-50: #f9f9f9;
+    --color-silver-100: #f3f3f3;
+    --color-silver-200: #e7e7e7;
+    --color-silver-300: #c6c6c6;
+    --color-silver-400: #a5a5a5;
+    --color-silver-500: #848484;
+    --color-silver-600: #6b6b6b;
+    --color-silver-700: #525252;
+    --color-silver-800: #393939;
+    --color-silver-900: #202020;
+    --color-silver-950: #0d0d0d;
+}
+
+:root,
+:root[data-theme='dark'] {
+    color-scheme: dark;
+    
+    /* Dark theme colors - using values from @theme block */
+    --color-uae-gold-50: #f5f0e6;
+    --color-uae-gold-100: #e8dcc3;
+    --color-uae-gold-200: #d4c19a;
+    --color-uae-gold-300: #b68a35;
+    --color-uae-gold-400: #a67a2a;
+    --color-uae-gold-500: #8f6a24;
+    --color-uae-gold-600: #785a1f;
+    --color-uae-gold-700: #614a19;
+    --color-uae-gold-800: #4a3a13;
+    --color-uae-gold-900: #332a0d;
+    --color-uae-gold-950: #1c1507;
+
+    --color-iron-50: #f5f5f5;
+    --color-iron-100: #e5e5e5;
+    --color-iron-200: #d4d4d4;
+    --color-iron-300: #a3a3a3;
+    --color-iron-400: #737373;
+    --color-iron-500: #414042;
+    --color-iron-600: #373638;
+    --color-iron-700: #2d2c2e;
+    --color-iron-800: #232224;
+    --color-iron-900: #19181a;
+    --color-iron-950: #0f0e10;
+
+    --color-silver-50: #f9f9f9;
+    --color-silver-100: #f3f3f3;
+    --color-silver-200: #e7e7e7;
+    --color-silver-300: #c6c6c6;
+    --color-silver-400: #a5a5a5;
+    --color-silver-500: #848484;
+    --color-silver-600: #6b6b6b;
+    --color-silver-700: #525252;
+    --color-silver-800: #393939;
+    --color-silver-900: #202020;
+    --color-silver-950: #0d0d0d;
+}
+
+:root[data-theme='light'] {
+    color-scheme: light;
+
+    --color-uae-gold-50: #fff8ef;
+    --color-uae-gold-100: #ffe8c2;
+    --color-uae-gold-200: #ffd18e;
+    --color-uae-gold-300: #ffc35c;
+    --color-uae-gold-400: #e2a93f;
+    --color-uae-gold-500: #c58b2b;
+    --color-uae-gold-600: #a46d1c;
+    --color-uae-gold-700: #86530f;
+    --color-uae-gold-800: #6a410a;
+    --color-uae-gold-900: #4a2b07;
+    --color-uae-gold-950: #301b04;
+
+    --color-iron-50: #ffffff;
+    --color-iron-100: #f5f5f5;
+    --color-iron-200: #e5e5e5;
+    --color-iron-300: #c9c9c9;
+    --color-iron-400: #a5a5a5;
+    --color-iron-500: #7b7b7c;
+    --color-iron-600: #5b5a5c;
+    --color-iron-700: #3d3c3e;
+    --color-iron-800: #2c2b2d;
+    --color-iron-900: #1f1e20;
+    --color-iron-950: #131214;
+
+    --color-silver-50: #fafafa;
+    --color-silver-100: #f0f0f0;
+    --color-silver-200: #d5d5d5;
+    --color-silver-300: #bababa;
+    --color-silver-400: #9f9f9f;
+    --color-silver-500: #858585;
+    --color-silver-600: #6b6b6b;
+    --color-silver-700: #515151;
+    --color-silver-800: #373737;
+    --color-silver-900: #1d1d1d;
+    --color-silver-950: #0f0f0f;
+}
+
+body {
+    background-color: var(--color-iron-950);
+    color: var(--color-silver-50);
+    transition: background-color 200ms ease, color 200ms ease;
+}
+
+:root[data-theme='light'] body {
+    background-color: #ffffff;
+    color: #1e1d1a;
+}
+
+.theme-toggle {
+    border-color: rgba(255, 255, 255, 0.15);
+    background-color: rgba(255, 255, 255, 0.05);
+    color: inherit;
+    transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+
+:root[data-theme='light'] .theme-toggle {
+    border-color: rgba(0, 0, 0, 0.15);
+    background-color: rgba(0, 0, 0, 0.04);
+}
+
+.theme-toggle:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+:root[data-theme='light'] .theme-toggle:hover {
+    background-color: rgba(0, 0, 0, 0.08);
+}

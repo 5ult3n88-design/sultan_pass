@@ -3,6 +3,7 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="csrf-token" content="{{ csrf_token() }}">
         <title>{{ $title ?? config('app.name', 'PASS') }}</title>
         @if (! app()->environment('testing') && file_exists(public_path('build/manifest.json')))
             @vite(['resources/css/app.css', 'resources/js/app.js'])
@@ -58,6 +59,14 @@
                             {{ __('Go') }}
                         </span>
                     </a>
+                    @if(auth()->user()->role !== 'participant')
+                    <a href="{{ route('ai-assistant.index') }}" class="flex items-center justify-between rounded-lg px-4 py-2 transition hover:bg-iron-800/70 {{ request()->routeIs('ai-assistant.*') ? 'bg-uae-gold-300/20 text-uae-gold-200' : '' }}">
+                        <span>{{ __('AI Assistant') }}</span>
+                        <span class="rounded-full bg-purple-500/20 px-2 py-0.5 text-xs font-semibold text-purple-200">
+                            {{ __('AI') }}
+                        </span>
+                    </a>
+                    @endif
                 </nav>
                 <div class="mt-auto px-6 pb-8 pt-6">
                     <form action="{{ route('locale.switch') }}" method="POST" class="space-y-2">

@@ -63,4 +63,11 @@ class User extends Authenticatable
     {
         return $this->hasMany(PasswordResetRequest::class);
     }
+
+    public function assessments()
+    {
+        return $this->belongsToMany(Assessment::class, 'assessment_participants', 'participant_id', 'assessment_id')
+            ->withPivot('status', 'score', 'feedback')
+            ->withTimestamps();
+    }
 }

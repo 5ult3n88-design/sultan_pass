@@ -9,6 +9,8 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ManagerController;
 use App\Http\Controllers\SurveyController;
 use App\Http\Controllers\AssessmentController;
+use App\Http\Controllers\AIDemoController;
+use App\Http\Controllers\AI\AIAssistantController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
@@ -45,6 +47,17 @@ Route::post('locale/switch', function (Request $request) {
 
     return redirect()->to($redirect ?: url('/'));
 })->name('locale.switch');
+
+// AI Demo Routes (Public - No Authentication Required)
+Route::get('ai-demo', [AIDemoController::class, 'index'])->name('ai-demo');
+Route::post('ai-demo/analyze-qualitative', [AIDemoController::class, 'analyzeQualitative'])->name('ai-demo.analyze-qualitative');
+Route::post('ai-demo/analyze-strengths', [AIDemoController::class, 'analyzeStrengths'])->name('ai-demo.analyze-strengths');
+
+// AI Assistant Routes (For Admin, Manager, Assessor only)
+Route::middleware(['auth', 'role:admin,manager,assessor'])->group(function () {
+    Route::get('ai-assistant', [AIAssistantController::class, 'index'])->name('ai-assistant.index');
+    Route::post('ai-assistant/chat', [AIAssistantController::class, 'chat'])->name('ai-assistant.chat');
+});
 
 Route::middleware('guest')->group(function () {
     Route::get('login', [AuthController::class, 'showLoginForm'])->name('login');

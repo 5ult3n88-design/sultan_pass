@@ -35,4 +35,18 @@ return [
         ],
     ],
 
+    'deepseek' => [
+        'api_key' => env('DEEPSEEK_API_KEY'),
+        'base_url' => env('DEEPSEEK_BASE_URL', 'https://api.deepseek.com/v1'),
+        'model' => env('DEEPSEEK_MODEL', 'deepseek-chat'),
+        'timeout' => env('DEEPSEEK_TIMEOUT', 30),
+    ],
+
+    'local_ai' => [
+        'enabled' => env('LOCAL_AI_ENABLED', false),
+        'base_url' => env('LOCAL_AI_BASE_URL', 'http://localhost:11434'),
+        'model' => env('LOCAL_AI_MODEL', 'deepseek-r1:7b'),
+        'timeout' => env('LOCAL_AI_TIMEOUT', 120),
+    ],
+
 ];

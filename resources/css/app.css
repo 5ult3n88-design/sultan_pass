@@ -137,7 +137,7 @@ body {
 
 :root[data-theme='light'] body {
     background-color: #ffffff;
-    color: #1e1d1a;
+    color: #000000;
 }
 
 .theme-toggle {
@@ -158,4 +158,306 @@ body {
 
 :root[data-theme='light'] .theme-toggle:hover {
     background-color: rgba(0, 0, 0, 0.08);
+}
+
+/* Light mode overrides for main content area */
+:root[data-theme='light'] main {
+    background-color: #ffffff;
+}
+
+:root[data-theme='light'] section {
+    background-color: #f9fafb;
+}
+
+/* Light mode: Sidebar styling - professional gray theme */
+:root[data-theme='light'] aside {
+    background: linear-gradient(to bottom, #1f2937 0%, #111827 100%) !important;
+    border-right-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Light mode: Sidebar MOD header */
+:root[data-theme='light'] aside > div:first-of-type {
+    border-bottom-color: rgba(255, 255, 255, 0.1) !important;
+    background-color: rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Light mode: Sidebar text colors - keep yellow/gold for consistency */
+:root[data-theme='light'] aside .text-yellow-100,
+:root[data-theme='light'] aside .text-yellow-50,
+:root[data-theme='light'] aside .text-yellow-200 {
+    color: #fbbf24 !important;
+}
+
+/* Light mode: Sidebar navigation hover */
+:root[data-theme='light'] aside nav a:hover,
+:root[data-theme='light'] aside nav button:hover {
+    background-color: rgba(251, 191, 36, 0.15) !important;
+}
+
+/* Light mode: Sidebar active states */
+:root[data-theme='light'] aside nav .bg-yellow-600\/30 {
+    background-color: rgba(251, 191, 36, 0.2) !important;
+}
+
+/* Light mode: Sidebar badges */
+:root[data-theme='light'] aside .bg-yellow-600\/30 {
+    background-color: rgba(251, 191, 36, 0.2) !important;
+}
+
+/* Light mode: Sidebar buttons */
+:root[data-theme='light'] aside button,
+:root[data-theme='light'] aside form button {
+    border-color: rgba(251, 191, 36, 0.3) !important;
+    background-color: rgba(251, 191, 36, 0.15) !important;
+    color: #fbbf24 !important;
+}
+
+:root[data-theme='light'] aside button:hover,
+:root[data-theme='light'] aside form button:hover {
+    background-color: rgba(251, 191, 36, 0.25) !important;
+}
+
+/* Light mode: Card backgrounds - default white for list items */
+:root[data-theme='light'] .bg-white\/5,
+:root[data-theme='light'] .bg-white\/10 {
+    background-color: #ffffff !important;
+    border: 1px solid #e5e7eb !important;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06) !important;
+}
+
+/* Light mode: Borders */
+:root[data-theme='light'] .border-white\/10,
+:root[data-theme='light'] .border-white\/5 {
+    border-color: #d1d5db !important;
+    border-width: 1px !important;
+}
+
+:root[data-theme='light'] .divide-white\/10 > * + *,
+:root[data-theme='light'] .divide-white\/5 > * + * {
+    border-color: #e5e7eb !important;
+}
+
+/* Light mode: Text colors - All black for maximum readability */
+:root[data-theme='light'] .text-white {
+    color: #000000 !important;
+}
+
+:root[data-theme='light'] .text-slate-100 {
+    color: #000000 !important;
+}
+
+:root[data-theme='light'] .text-slate-200 {
+    color: #1a1a1a !important;
+}
+
+:root[data-theme='light'] .text-slate-300 {
+    color: #2d2d2d !important;
+}
+
+:root[data-theme='light'] .text-slate-400 {
+    color: #404040 !important;
+}
+
+:root[data-theme='light'] .text-slate-500 {
+    color: #525252 !important;
+}
+
+:root[data-theme='light'] .text-silver-100 {
+    color: #000000 !important;
+}
+
+:root[data-theme='light'] .text-silver-200 {
+    color: #1a1a1a !important;
+}
+
+:root[data-theme='light'] .text-silver-300 {
+    color: #2d2d2d !important;
+}
+
+:root[data-theme='light'] .text-silver-400 {
+    color: #404040 !important;
+}
+
+:root[data-theme='light'] .text-silver-500 {
+    color: #525252 !important;
+}
+
+/* Light mode: Additional text color classes */
+:root[data-theme='light'] .text-gray-100 {
+    color: #000000 !important;
+}
+
+:root[data-theme='light'] .text-gray-200 {
+    color: #1a1a1a !important;
+}
+
+:root[data-theme='light'] .text-gray-300 {
+    color: #2d2d2d !important;
+}
+
+:root[data-theme='light'] .text-gray-400 {
+    color: #404040 !important;
+}
+
+:root[data-theme='light'] .text-gray-500 {
+    color: #525252 !important;
+}
+
+:root[data-theme='light'] .text-gray-600 {
+    color: #666666 !important;
+}
+
+:root[data-theme='light'] .text-gray-700 {
+    color: #333333 !important;
+}
+
+:root[data-theme='light'] .text-gray-800 {
+    color: #1a1a1a !important;
+}
+
+:root[data-theme='light'] .text-gray-900 {
+    color: #000000 !important;
+}
+
+/* Light mode: Input backgrounds and chat boxes */
+:root[data-theme='light'] .bg-slate-900\/60,
+:root[data-theme='light'] .bg-slate-900\/50,
+:root[data-theme='light'] .bg-slate-900\/40 {
+    background-color: #ffffff !important;
+    border: 1px solid #e5e7eb !important;
+}
+
+:root[data-theme='light'] .bg-iron-800,
+:root[data-theme='light'] .bg-iron-900,
+:root[data-theme='light'] .bg-iron-800\/50,
+:root[data-theme='light'] .bg-iron-900\/80 {
+    background-color: #ffffff !important;
+    border: 1px solid #e5e7eb !important;
+}
+
+/* Light mode: Badge text colors */
+:root[data-theme='light'] .text-uae-gold-100,
+:root[data-theme='light'] .text-uae-gold-200 {
+    color: #92400e !important;
+}
+
+/* Light mode: Gold icon backgrounds in stat cards - matching sidebar theme */
+:root[data-theme='light'] .bg-uae-gold-300\/15 {
+    background-color: rgba(251, 191, 36, 0.2) !important;
+}
+
+:root[data-theme='light'] .text-uae-gold-200 {
+    color: #fbbf24 !important;
+}
+
+/* Light mode: Stat card text colors - all amber like the numbers */
+:root[data-theme='light'] .rounded-2xl.bg-white\/5 .text-white,
+:root[data-theme='light'] .rounded-2xl.bg-white\/10 .text-white,
+:root[data-theme='light'] .rounded-2xl.border.bg-white\/5 .text-white,
+:root[data-theme='light'] .rounded-2xl.border.bg-white\/10 .text-white {
+    color: #fbbf24 !important;
+}
+
+:root[data-theme='light'] .rounded-2xl.bg-white\/5 .text-slate-400,
+:root[data-theme='light'] .rounded-2xl.bg-white\/10 .text-slate-400,
+:root[data-theme='light'] .rounded-2xl.border.bg-white\/5 .text-slate-400,
+:root[data-theme='light'] .rounded-2xl.border.bg-white\/10 .text-slate-400 {
+    color: #fbbf24 !important;
+}
+
+:root[data-theme='light'] .rounded-2xl.bg-white\/5 .text-silver-400,
+:root[data-theme='light'] .rounded-2xl.bg-white\/10 .text-silver-400,
+:root[data-theme='light'] .rounded-2xl.border.bg-white\/5 .text-silver-400,
+:root[data-theme='light'] .rounded-2xl.border.bg-white\/10 .text-silver-400 {
+    color: #fbbf24 !important;
+}
+
+:root[data-theme='light'] .text-emerald-200 {
+    color: #047857 !important;
+}
+
+:root[data-theme='light'] .text-rose-200 {
+    color: #be123c !important;
+}
+
+:root[data-theme='light'] .text-purple-200 {
+    color: #7e22ce !important;
+}
+
+:root[data-theme='light'] .text-amber-200 {
+    color: #92400e !important;
+}
+
+/* Light mode: Hover backgrounds */
+:root[data-theme='light'] .hover\:bg-white\/10:hover {
+    background-color: #f3f4f6 !important;
+}
+
+/* Light mode: Table header backgrounds */
+:root[data-theme='light'] thead.bg-white\/5 {
+    background-color: #f9fafb !important;
+}
+
+/* Light mode: Enhanced card borders with rounded corners */
+:root[data-theme='light'] .rounded-2xl.border {
+    border-color: #d1d5db !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+}
+
+:root[data-theme='light'] .rounded-xl.border {
+    border-color: #d1d5db !important;
+    box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Light mode: Dashed borders */
+:root[data-theme='light'] .border-dashed {
+    border-color: #9ca3af !important;
+}
+
+/* Light mode: Stat cards and prominent boxes - dark gray matching sidebar */
+:root[data-theme='light'] .rounded-2xl.bg-white\/5,
+:root[data-theme='light'] .rounded-2xl.bg-white\/10 {
+    background: linear-gradient(135deg, #1f2937 0%, #111827 100%) !important;
+    border-color: rgba(251, 191, 36, 0.3) !important;
+}
+
+/* Light mode: Stat cards with border - dark gray gradient matching sidebar */
+:root[data-theme='light'] .rounded-2xl.border.bg-white\/5,
+:root[data-theme='light'] .rounded-2xl.border.bg-white\/10 {
+    background: linear-gradient(135deg, #1f2937 0%, #18202f 50%, #111827 100%) !important;
+    border-color: rgba(251, 191, 36, 0.4) !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Light mode: Table containers - override stat cards for tables */
+:root[data-theme='light'] .overflow-hidden.rounded-2xl.bg-white\/5,
+:root[data-theme='light'] .overflow-hidden.rounded-2xl.bg-white\/10,
+:root[data-theme='light'] .overflow-hidden.rounded-2xl {
+    background-color: #ffffff !important;
+    border-color: #d1d5db !important;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06) !important;
+}
+
+/* Light mode: Table rows - white background */
+:root[data-theme='light'] table tbody tr {
+    background-color: #ffffff !important;
+}
+
+/* Light mode: Form containers */
+:root[data-theme='light'] form.rounded-xl.bg-white\/5,
+:root[data-theme='light'] .rounded-xl.bg-white\/5 {
+    background-color: #fafaf9 !important;
+    border-color: #d6d3d1 !important;
+}
+
+/* Light mode: Preserve white text on colored buttons */
+:root[data-theme='light'] .bg-uae-gold-300 .text-white,
+:root[data-theme='light'] .bg-emerald-500 .text-white,
+:root[data-theme='light'] .bg-rose-500 .text-white,
+:root[data-theme='light'] button.text-white,
+:root[data-theme='light'] a.bg-uae-gold-300\/90 .text-white,
+:root[data-theme='light'] a.bg-uae-gold-300\/80 .text-white,
+:root[data-theme='light'] a.bg-emerald-500\/80 .text-white,
+:root[data-theme='light'] a.bg-emerald-500\/90 .text-white {
+    color: #ffffff !important;
 }

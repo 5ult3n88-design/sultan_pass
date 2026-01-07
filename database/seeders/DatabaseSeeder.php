@@ -44,6 +44,71 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
+        // Seed Manager Users
+        $managers = [
+            [
+                'username'  => 'manager.central',
+                'full_name' => 'Central Assessment Manager',
+                'email'     => 'manager.central@pass.local',
+                'department'=> 'Assessment Centre',
+                'rank'      => 'Senior Manager',
+            ],
+            [
+                'username'  => 'manager.hr',
+                'full_name' => 'HR Programs Manager',
+                'email'     => 'manager.hr@pass.local',
+                'department'=> 'Human Resources',
+                'rank'      => 'Manager',
+            ],
+        ];
+
+        foreach ($managers as $manager) {
+            User::updateOrCreate(
+                ['email' => $manager['email']],
+                array_merge($manager, [
+                    'password' => Hash::make('Manager@12345'),
+                    'role'     => 'manager',
+                    'status'   => 'active',
+                ])
+            );
+        }
+
+        // Seed Assessor Users
+        $assessors = [
+            [
+                'username'  => 'assessor.leadership',
+                'full_name' => 'Leadership Assessor',
+                'email'     => 'assessor.leadership@pass.local',
+                'department'=> 'Leadership Development',
+                'rank'      => 'Senior Assessor',
+            ],
+            [
+                'username'  => 'assessor.behavioral',
+                'full_name' => 'Behavioral Assessor',
+                'email'     => 'assessor.behavioral@pass.local',
+                'department'=> 'Behavioral Assessments',
+                'rank'      => 'Assessor',
+            ],
+            [
+                'username'  => 'assessor.technical',
+                'full_name' => 'Technical Assessor',
+                'email'     => 'assessor.technical@pass.local',
+                'department'=> 'Technical Evaluations',
+                'rank'      => 'Subject Matter Expert',
+            ],
+        ];
+
+        foreach ($assessors as $assessor) {
+            User::updateOrCreate(
+                ['email' => $assessor['email']],
+                array_merge($assessor, [
+                    'password' => Hash::make('Assessor@12345'),
+                    'role'     => 'assessor',
+                    'status'   => 'active',
+                ])
+            );
+        }
+
         // Seed Competencies
         $competenciesData = [
             ['category' => 'leadership', 'name' => 'Strategic Thinking', 'description' => 'Ability to think strategically and plan for the future'],

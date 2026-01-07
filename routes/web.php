@@ -9,6 +9,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ManagerController;
 use App\Http\Controllers\SurveyController;
 use App\Http\Controllers\AssessmentController;
+use App\Http\Controllers\GradingController;
 use App\Http\Controllers\AIDemoController;
 use App\Http\Controllers\AI\AIAssistantController;
 use Illuminate\Support\Facades\Auth;
@@ -109,6 +110,13 @@ Route::middleware('auth')->group(function () {
     Route::middleware('role:manager,admin')->group(function () {
         Route::get('assessments/create', [AssessmentController::class, 'create'])->name('assessments.create');
         Route::post('assessments', [AssessmentController::class, 'store'])->name('assessments.store');
+    });
+
+    // Grading routes (assessors, managers, and admins)
+    Route::middleware('role:assessor,manager,admin')->group(function () {
+        Route::get('assessments/{assessment}/grade', [GradingController::class, 'index'])->name('assessments.grade');
+        Route::get('assessments/{assessment}/grade/{participant}', [GradingController::class, 'show'])->name('assessments.grade-participant');
+        Route::post('assessments/{assessment}/grade/{participant}', [GradingController::class, 'store'])->name('assessments.save-grade');
     });
 
     // Assessor routes

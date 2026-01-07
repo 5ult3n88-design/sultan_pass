@@ -16,6 +16,8 @@ class Assessment extends Model
      */
     protected $fillable = [
         'type',
+        'scoring_mode',
+        'max_total_score',
         'created_by',
         'start_date',
         'end_date',
@@ -28,6 +30,7 @@ class Assessment extends Model
     protected $casts = [
         'start_date' => 'date',
         'end_date' => 'date',
+        'max_total_score' => 'decimal:2',
     ];
 
     public function creator(): BelongsTo
@@ -38,5 +41,20 @@ class Assessment extends Model
     public function translations(): HasMany
     {
         return $this->hasMany(AssessmentTranslation::class);
+    }
+
+    public function categories(): HasMany
+    {
+        return $this->hasMany(AssessmentCategory::class);
+    }
+
+    public function questions(): HasMany
+    {
+        return $this->hasMany(AssessmentQuestion::class);
+    }
+
+    public function responses(): HasMany
+    {
+        return $this->hasMany(ParticipantResponse::class);
     }
 }

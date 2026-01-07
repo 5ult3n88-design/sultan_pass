@@ -70,4 +70,17 @@ class User extends Authenticatable
             ->withPivot('status', 'score', 'feedback')
             ->withTimestamps();
     }
+
+    public function participantResponses(): HasMany
+    {
+        return $this->hasMany(ParticipantResponse::class, 'participant_id');
+    }
+
+    /**
+     * Get the user's display name (full_name or username)
+     */
+    public function getNameAttribute(): string
+    {
+        return $this->full_name ?? $this->username ?? $this->email;
+    }
 }

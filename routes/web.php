@@ -95,6 +95,14 @@ Route::middleware('auth')->group(function () {
         ->middleware('role:participant,manager,admin,assessor')
         ->name('dashboard.participant');
 
+    Route::get('dashboard/examinee-performance', [DashboardController::class, 'examineePerformance'])
+        ->middleware('role:participant,manager,admin,assessor')
+        ->name('dashboard.examinee-performance');
+    
+    Route::get('dashboard/examinee-performance/user/{participant}', [DashboardController::class, 'examineePerformance'])
+        ->middleware('role:manager,admin,assessor')
+        ->name('dashboard.examinee-performance.user');
+
     Route::get('assessments/{assessment}/take', [SurveyController::class, 'take'])
         ->middleware('role:participant,manager,admin')
         ->name('assessments.take');

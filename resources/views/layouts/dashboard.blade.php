@@ -83,6 +83,12 @@
                         </span>
                     </a>
                     @endif
+                    <a href="{{ route('dashboard.examinee-performance') }}" class="flex items-center justify-between rounded-lg px-4 py-2 transition hover:bg-amber-500/15 {{ request()->routeIs('dashboard.examinee-performance*') ? 'bg-amber-500/20 text-amber-300' : '' }}">
+                        <span>{{ __('Examinee Performance Dashboard') }}</span>
+                        <span class="rounded-full bg-green-500/30 px-2 py-0.5 text-xs font-semibold text-green-100">
+                            {{ __('Performance') }}
+                        </span>
+                    </a>
                 </nav>
                 <div class="mt-auto px-6 pb-8 pt-6">
                     <form action="{{ route('locale.switch') }}" method="POST" class="space-y-2">

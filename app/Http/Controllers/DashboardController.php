@@ -9,6 +9,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
@@ -85,6 +86,225 @@ class DashboardController extends Controller
         $assignments = $this->participantEvaluations();
 
         return view('dashboards.participant', compact('assignments'));
+    }
+
+    public function examineePerformance(Request $request, ?User $participant = null): View
+    {
+        $currentUser = $request->user();
+        $canViewOthers = in_array($currentUser->role, ['admin', 'manager', 'assessor'], true);
+
+        // If a participant is passed via route, respect it only for privileged roles
+        if ($participant && ! $canViewOthers) {
+            $participant = $currentUser;
+        }
+
+        // If no participant from route, optionally pick from query param (for dropdown)
+        if (! $participant) {
+            $participantId = (int) $request->query('participant_id', 0);
+
+            if ($canViewOthers && $participantId > 0) {
+                $participant = User::query()
+                    ->where('role', 'participant')
+                    ->find($participantId);
+            }
+
+            if (! $participant) {
+                $participant = $currentUser;
+            }
+        }
+
+        // Build participant list (for selector) for privileged roles
+        $participantsList = collect();
+        if ($canViewOthers) {
+            $participantsList = User::query()
+                ->where('role', 'participant')
+                ->orderByRaw('COALESCE(full_name, username)')
+                ->get(['id', 'full_name', 'username', 'department']);
+        }
+
+        // Get overall evaluation score (0-100%)
+        $overallScore = $this->calculateOverallScore($participant);
+
+        // Get psychometric test categories with scores (for pie chart)
+        $categoryScores = $this->getCategoryScores($participant);
+
+        // Get IQ test results (for bar chart)
+        $iqTestResults = $this->getIQTestResults($participant);
+
+        // Get performance trends over time (for bottom-right chart)
+        $performanceTrends = $this->getPerformanceTrends($participant);
+
+        return view('dashboards.examinee-performance', compact(
+            'participant',
+            'participantsList',
+            'overallScore',
+            'categoryScores',
+            'iqTestResults',
+            'performanceTrends'
+        ));
+    }
+
+    protected function calculateOverallScore(User $participant): float
+    {
+        if (!Schema::hasTable('assessment_participants')) {
+            return 0.0;
+        }
+
+        $avgScore = DB::table('assessment_participants')
+            ->where('participant_id', $participant->id)
+            ->where('status', 'completed')
+            ->whereNotNull('score')
+            ->avg('score');
+
+        // Normalize to 0-100 if scores are on a different scale
+        // Assuming scores are already 0-100, but we'll ensure it
+        return min(100, max(0, (float) ($avgScore ?? 0)));
+    }
+
+    protected function getCategoryScores(User $participant): array
+    {
+        if (!Schema::hasTable('participant_responses') || !Schema::hasTable('assessment_categories')) {
+            return ['labels' => [], 'values' => [], 'colors' => []];
+        }
+
+        // Get all participant responses with selected answers
+        $responses = DB::table('participant_responses')
+            ->where('participant_id', $participant->id)
+            ->whereNotNull('selected_answer_ids')
+            ->get();
+
+        if ($responses->isEmpty()) {
+            return ['labels' => [], 'values' => [], 'colors' => []];
+        }
+
+        // Calculate category scores from answer weights
+        $categoryTotals = [];
+        $categoryCounts = [];
+        $categoryInfo = [];
+
+        foreach ($responses as $response) {
+            $selectedAnswerIds = json_decode($response->selected_answer_ids, true);
+            if (!is_array($selectedAnswerIds) || empty($selectedAnswerIds)) {
+                continue;
+            }
+
+            // Get category weights for selected answers
+            $weights = DB::table('answer_category_weights as acw')
+                ->join('assessment_categories as ac', 'ac.id', '=', 'acw.category_id')
+                ->whereIn('acw.answer_id', $selectedAnswerIds)
+                ->select('ac.id', 'ac.name', 'ac.color', 'acw.weight')
+                ->get();
+
+            foreach ($weights as $weight) {
+                $catId = $weight->id;
+                if (!isset($categoryTotals[$catId])) {
+                    $categoryTotals[$catId] = 0;
+                    $categoryCounts[$catId] = 0;
+                    $categoryInfo[$catId] = [
+                        'name' => $weight->name,
+                        'color' => $weight->color ?: '#B68A35',
+                    ];
+                }
+                $categoryTotals[$catId] += (float) $weight->weight;
+                $categoryCounts[$catId]++;
+            }
+        }
+
+        // Calculate averages and normalize to 0-100 scale
+        // Assuming max weight per question is around 3.0, and we have ~10 questions
+        // So max possible score per category would be around 30 (10 questions * 3.0 max weight)
+        // We'll normalize to 0-100 scale
+        $maxPossibleScore = 30; // Adjust based on your actual max weights
+        $labels = [];
+        $values = [];
+        $colors = [];
+
+        foreach ($categoryTotals as $catId => $total) {
+            $avgScore = $categoryCounts[$catId] > 0 ? ($total / $categoryCounts[$catId]) : 0;
+            // Normalize to 0-100 (assuming max weight is 3.0 per answer)
+            $normalizedScore = min(100, max(0, ($avgScore / 3.0) * 100));
+            
+            $labels[] = $categoryInfo[$catId]['name'];
+            $values[] = round($normalizedScore, 1);
+            $colors[] = $categoryInfo[$catId]['color'];
+        }
+
+        return [
+            'labels' => $labels,
+            'values' => $values,
+            'colors' => $colors,
+        ];
+    }
+
+    protected function getIQTestResults(User $participant): array
+    {
+        if (!Schema::hasTable('assessment_participants') || !Schema::hasTable('assessments')) {
+            return ['score' => null, 'test_name' => null, 'test_date' => null];
+        }
+
+        // Get the most recent IQ test result (assessments whose title contains 'IQ')
+        $iqResult = DB::table('assessment_participants as ap')
+            ->join('assessments as a', 'a.id', '=', 'ap.assessment_id')
+            ->join('assessment_translations as at', 'at.assessment_id', '=', 'a.id')
+            ->where('ap.participant_id', $participant->id)
+            ->where('at.title', 'like', '%IQ%')
+            ->where('ap.status', 'completed')
+            ->whereNotNull('ap.score')
+            ->select(
+                'at.title',
+                'ap.score',
+                'ap.updated_at'
+            )
+            ->orderBy('ap.updated_at', 'desc')
+            ->first();
+
+        if (!$iqResult) {
+            return ['score' => null, 'test_name' => null, 'test_date' => null];
+        }
+
+        // Normalize score to 0-100 if needed (assuming score is already 0-100)
+        $score = min(100, max(0, (float) $iqResult->score));
+        
+        return [
+            'score' => $score,
+            'test_name' => $iqResult->title,
+            'test_date' => \Carbon\Carbon::parse($iqResult->updated_at)->translatedFormat('F Y'),
+        ];
+    }
+
+    protected function getPerformanceTrends(User $participant): array
+    {
+        if (!Schema::hasTable('assessment_participants')) {
+            return ['labels' => [], 'values' => []];
+        }
+
+        // Get performance over last 6 months
+        $trends = DB::table('assessment_participants as ap')
+            ->where('ap.participant_id', $participant->id)
+            ->where('ap.status', 'completed')
+            ->whereNotNull('ap.score')
+            ->where('ap.updated_at', '>=', now()->subMonths(6))
+            ->select(
+                DB::raw('DATE_FORMAT(ap.updated_at, "%Y-%m") as month'),
+                DB::raw('AVG(ap.score) as avg_score'),
+                DB::raw('COUNT(*) as test_count')
+            )
+            ->groupBy('month')
+            ->orderBy('month')
+            ->get();
+
+        $labels = [];
+        $values = [];
+
+        foreach ($trends as $trend) {
+            $labels[] = \Carbon\Carbon::createFromFormat('Y-m', $trend->month)->translatedFormat('M Y');
+            $values[] = round((float) $trend->avg_score, 2);
+        }
+
+        return [
+            'labels' => $labels,
+            'values' => $values,
+        ];
     }
 
     protected function metricCount(string $table, array $where = []): int

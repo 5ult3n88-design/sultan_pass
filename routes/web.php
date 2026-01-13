@@ -113,20 +113,20 @@ Route::middleware('auth')->group(function () {
         ->name('assessments.store-response');
 
     Route::get('assessments/{assessment}/review', [SurveyController::class, 'assessorReport'])
-        ->middleware('role:assessor,admin')
+        ->middleware('role:assessor,manager,admin')
         ->name('assessments.review');
 
     Route::get('assessments/{assessment}/report', [SurveyController::class, 'managerReport'])
         ->middleware('role:manager,admin')
         ->name('assessments.report');
 
-    Route::middleware('role:manager,admin')->group(function () {
+    Route::middleware('role:assessor,admin')->group(function () {
         Route::get('assessments/create', [AssessmentController::class, 'create'])->name('assessments.create');
         Route::post('assessments', [AssessmentController::class, 'store'])->name('assessments.store');
     });
 
-    // Grading routes (assessors, managers, and admins)
-    Route::middleware('role:assessor,manager,admin')->group(function () {
+    // Grading routes (assessors and admins)
+    Route::middleware('role:assessor,admin')->group(function () {
         Route::get('assessments/{assessment}/grade', [GradingController::class, 'index'])->name('assessments.grade');
         Route::get('assessments/{assessment}/grade/{participant}', [GradingController::class, 'show'])->name('assessments.grade-participant');
         Route::post('assessments/{assessment}/grade/{participant}', [GradingController::class, 'store'])->name('assessments.save-grade');
@@ -139,21 +139,26 @@ Route::middleware('auth')->group(function () {
         Route::post('my-tests/{test}', [TestTakingController::class, 'submit'])->name('tests.submit');
     });
 
-    // Test routes (for assessors, managers, and admins)
-    Route::middleware('role:assessor,manager,admin')->group(function () {
-        Route::get('tests', [\App\Http\Controllers\TestController::class, 'index'])->name('tests.index');
+    // Test creation and grading (assessor/admin only) - Must be before wildcard routes
+    Route::middleware('role:assessor,admin')->group(function () {
         Route::get('tests/create', [\App\Http\Controllers\TestController::class, 'create'])->name('tests.create');
         Route::post('tests/create-type', [\App\Http\Controllers\TestController::class, 'createType'])->name('tests.create-type');
         Route::post('tests', [\App\Http\Controllers\TestController::class, 'store'])->name('tests.store');
-        Route::get('tests/{test}', [\App\Http\Controllers\TestController::class, 'show'])->name('tests.show');
-        Route::get('tests/{test}/edit', [\App\Http\Controllers\TestController::class, 'edit'])->name('tests.edit');
-        Route::put('tests/{test}', [\App\Http\Controllers\TestController::class, 'update'])->name('tests.update');
-        Route::delete('tests/{test}', [\App\Http\Controllers\TestController::class, 'destroy'])->name('tests.destroy');
 
         // Test grading/correction routes
         Route::get('tests/{test}/grade', [\App\Http\Controllers\TestController::class, 'grade'])->name('tests.grade');
         Route::get('tests/{test}/grade/{assignment}', [\App\Http\Controllers\TestController::class, 'gradeAssignment'])->name('tests.grade-assignment');
         Route::post('tests/{test}/grade/{assignment}', [\App\Http\Controllers\TestController::class, 'saveGrade'])->name('tests.save-grade');
+
+        Route::get('tests/{test}/edit', [\App\Http\Controllers\TestController::class, 'edit'])->name('tests.edit');
+        Route::put('tests/{test}', [\App\Http\Controllers\TestController::class, 'update'])->name('tests.update');
+        Route::delete('tests/{test}', [\App\Http\Controllers\TestController::class, 'destroy'])->name('tests.destroy');
+    });
+
+    // Test routes (for assessors, managers, and admins) - Wildcard routes come last
+    Route::middleware('role:assessor,manager,admin')->group(function () {
+        Route::get('tests', [\App\Http\Controllers\TestController::class, 'index'])->name('tests.index');
+        Route::get('tests/{test}', [\App\Http\Controllers\TestController::class, 'show'])->name('tests.show');
     });
 
     // Assessor routes

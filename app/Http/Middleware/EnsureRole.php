@@ -21,10 +21,20 @@ class EnsureRole
 
         $user = $request->user();
 
-        if (! $user || ! in_array($user->role, $roles, true)) {
+        if (! $user) {
             abort(403);
         }
 
-        return $next($request);
+        if (in_array($user->role, $roles, true)) {
+            return $next($request);
+        }
+
+        foreach ($roles as $role) {
+            if (method_exists($user, 'hasRoleOrAbove') && $user->hasRoleOrAbove($role)) {
+                return $next($request);
+            }
+        }
+
+        abort(403);
     }
 }

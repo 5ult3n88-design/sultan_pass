@@ -1,4 +1,9 @@
-@extends('layouts.dashboard', [
+@php
+    $layout = auth()->check() && in_array(auth()->user()->role, ['participant', 'assessor', 'manager'], true)
+        ? 'layouts.role'
+        : 'layouts.dashboard';
+@endphp
+@extends($layout, [
     'title' => __('Examinee Performance Dashboard'),
     'subtitle' => __('Comprehensive performance analysis and evaluation summary'),
 ])
@@ -428,4 +433,3 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 @endpush
 @endsection
-

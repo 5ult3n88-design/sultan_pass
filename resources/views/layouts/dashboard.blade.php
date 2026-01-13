@@ -10,6 +10,15 @@
         @endif
     </head>
     <body class="min-h-screen bg-iron-950 text-silver-100">
+        @php
+            $currentUser = auth()->user();
+            $isAdmin = $currentUser?->hasRole('admin');
+            $isManager = $currentUser?->hasRole('manager');
+            $isAssessor = $currentUser?->hasRole('assessor');
+            $homeRoute = $isAdmin
+                ? 'dashboard.admin'
+                : ($isManager ? 'dashboard.manager' : ($isAssessor ? 'dashboard.assessor' : 'dashboard.participant'));
+        @endphp
         <div class="flex min-h-screen">
             <aside class="w-72 border-r border-gray-700/50 bg-gradient-to-b from-gray-800 to-gray-900 backdrop-blur shadow-xl">
                 <!-- MOD Header -->
@@ -29,7 +38,7 @@
 
                 <!-- PASS System Header -->
                 <div class="px-6 py-6">
-                    <a href="{{ route('dashboard.admin') }}" class="flex items-center gap-3 group">
+                    <a href="{{ route($homeRoute) }}" class="flex items-center gap-3 group">
                         <span class="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-amber-500/20 text-amber-400 text-lg font-bold transition group-hover:bg-amber-500/30">P</span>
                         <div>
                             <p class="text-xs uppercase tracking-[0.25em] text-amber-400">{{ __('PASS') }}</p>
@@ -38,59 +47,101 @@
                     </a>
                 </div>
                 <nav class="mt-6 space-y-1 px-6 text-sm font-medium text-amber-400">
-                    <a href="{{ route('dashboard.admin') }}" class="flex items-center justify-between rounded-lg px-4 py-2 transition hover:bg-amber-500/15 {{ request()->routeIs('dashboard.admin') ? 'bg-amber-500/20 text-amber-300' : '' }}">
-                        <span>{{ __('Overview') }}</span>
-                    </a>
                     <div class="space-y-1">
-                        <button id="users-menu-toggle" class="flex w-full items-center justify-between rounded-lg px-4 py-2 transition hover:bg-amber-500/15">
-                            <span class="text-xs font-semibold uppercase tracking-wider text-amber-400">{{ __('Users') }}</span>
-                            <svg id="users-menu-icon" class="h-4 w-4 text-amber-400 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <button id="dashboards-menu-toggle" class="flex w-full items-center justify-between rounded-lg px-4 py-2 transition hover:bg-amber-500/15">
+                            <span class="text-xs font-semibold uppercase tracking-wider text-amber-400">{{ __('Dashboards') }}</span>
+                            <svg id="dashboards-menu-icon" class="h-4 w-4 text-amber-400 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
                             </svg>
                         </button>
-                        <div id="users-submenu" class="max-h-48 space-y-1 overflow-y-auto pl-4 transition-all {{ request()->routeIs('admin.users.*') ? '' : 'hidden' }}" style="scrollbar-width: thin; scrollbar-color: rgba(251, 191, 36, 0.4) transparent;">
-                            <a href="{{ route('admin.users.index') }}" class="flex items-center justify-between rounded-lg px-4 py-2 transition hover:bg-amber-500/15 {{ (request()->routeIs('admin.users.index') || request()->routeIs('admin.users.create') || request()->routeIs('admin.users.edit')) && !request()->routeIs('admin.users.participants') && !request()->routeIs('admin.users.create-participant') ? 'bg-amber-500/20 text-amber-300' : '' }}">
-                                <span>{{ __('Staff users') }}</span>
-                                <span class="rounded-full bg-amber-500/20 px-2 py-0.5 text-xs text-amber-400">{{ \App\Models\User::where('role', '!=', 'participant')->count() }}</span>
-                            </a>
-                            <a href="{{ route('admin.users.participants') }}" class="flex items-center justify-between rounded-lg px-4 py-2 transition hover:bg-amber-500/15 {{ request()->routeIs('admin.users.participants') || request()->routeIs('admin.users.create-participant') ? 'bg-amber-500/20 text-amber-300' : '' }}">
-                                <span>{{ __('Participants') }}</span>
-                                <span class="rounded-full bg-amber-500/20 px-2 py-0.5 text-xs text-amber-400">{{ \App\Models\User::where('role', 'participant')->count() }}</span>
-                    </a>
+                        <div id="dashboards-submenu" class="max-h-48 space-y-1 overflow-y-auto pl-4 transition-all {{ request()->routeIs('dashboard.*') ? '' : 'hidden' }}" style="scrollbar-width: thin; scrollbar-color: rgba(251, 191, 36, 0.4) transparent;">
+                            @if($isAdmin)
+                                <a href="{{ route('dashboard.admin') }}" class="flex items-center justify-between rounded-lg px-4 py-2 transition hover:bg-amber-500/15 {{ request()->routeIs('dashboard.admin') ? 'bg-amber-500/20 text-amber-300' : '' }}">
+                                    <span>{{ __('Admin Overview') }}</span>
+                                </a>
+                            @endif
+                            @if($isAdmin || $isManager)
+                                <a href="{{ route('dashboard.manager') }}" class="flex items-center justify-between rounded-lg px-4 py-2 transition hover:bg-amber-500/15 {{ request()->routeIs('dashboard.manager') ? 'bg-amber-500/20 text-amber-300' : '' }}">
+                                    <span>{{ __('Manager Dashboard') }}</span>
+                                </a>
+                            @endif
+                            @if($isAdmin || $isManager || $isAssessor)
+                                <a href="{{ route('dashboard.assessor') }}" class="flex items-center justify-between rounded-lg px-4 py-2 transition hover:bg-amber-500/15 {{ request()->routeIs('dashboard.assessor') ? 'bg-amber-500/20 text-amber-300' : '' }}">
+                                    <span>{{ __('Assessor Dashboard') }}</span>
+                                </a>
+                            @endif
+                            @if($isAdmin || $isManager)
+                                <a href="{{ route('dashboard.participant') }}" class="flex items-center justify-between rounded-lg px-4 py-2 transition hover:bg-amber-500/15 {{ request()->routeIs('dashboard.participant') ? 'bg-amber-500/20 text-amber-300' : '' }}">
+                                    <span>{{ __('Participant Dashboard') }}</span>
+                                </a>
+                            @endif
                         </div>
                     </div>
-                    <a href="{{ route('admin.languages.index') }}" class="flex items-center justify-between rounded-lg px-4 py-2 transition hover:bg-amber-500/15 {{ request()->routeIs('admin.languages.*') ? 'bg-amber-500/20 text-amber-300' : '' }}">
-                        <span>{{ __('Languages') }}</span>
-                        <span class="rounded-full bg-amber-500/20 px-2 py-0.5 text-xs text-amber-400">{{ \App\Models\Language::count() }}</span>
-                    </a>
-                    <a href="{{ route('admin.password-resets.index') }}" class="flex items-center justify-between rounded-lg px-4 py-2 transition hover:bg-amber-500/15 {{ request()->routeIs('admin.password-resets.*') ? 'bg-amber-500/20 text-amber-300' : '' }}">
-                        <span>{{ __('Password resets') }}</span>
-                        <span class="rounded-full bg-amber-500/20 px-2 py-0.5 text-xs font-semibold text-amber-400">
-                            {{ \App\Models\PasswordResetRequest::pending()->count() }}
-                        </span>
-                    </a>
-                    @if(in_array(auth()->user()->role, ['admin', 'manager', 'assessor']))
-                    <a href="{{ route('tests.index') }}" class="flex items-center justify-between rounded-lg px-4 py-2 transition hover:bg-amber-500/15 {{ request()->routeIs('tests.*') ? 'bg-amber-500/20 text-amber-300' : '' }}">
-                        <span>{{ __('Tests') }}</span>
-                        <span class="rounded-full bg-emerald-500/30 px-2 py-0.5 text-xs font-semibold text-emerald-100">
-                            {{ \App\Models\Test::count() }}
-                        </span>
-                    </a>
+
+                    @if($isAdmin)
+                        <div class="space-y-1">
+                            <button id="users-menu-toggle" class="flex w-full items-center justify-between rounded-lg px-4 py-2 transition hover:bg-amber-500/15">
+                                <span class="text-xs font-semibold uppercase tracking-wider text-amber-400">{{ __('Users') }}</span>
+                                <svg id="users-menu-icon" class="h-4 w-4 text-amber-400 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                                </svg>
+                            </button>
+                            <div id="users-submenu" class="max-h-48 space-y-1 overflow-y-auto pl-4 transition-all {{ request()->routeIs('admin.users.*') ? '' : 'hidden' }}" style="scrollbar-width: thin; scrollbar-color: rgba(251, 191, 36, 0.4) transparent;">
+                                <a href="{{ route('admin.users.index') }}" class="flex items-center justify-between rounded-lg px-4 py-2 transition hover:bg-amber-500/15 {{ (request()->routeIs('admin.users.index') || request()->routeIs('admin.users.create') || request()->routeIs('admin.users.edit')) && !request()->routeIs('admin.users.participants') && !request()->routeIs('admin.users.create-participant') ? 'bg-amber-500/20 text-amber-300' : '' }}">
+                                    <span>{{ __('Staff users') }}</span>
+                                    <span class="rounded-full bg-amber-500/20 px-2 py-0.5 text-xs text-amber-400">{{ \App\Models\User::where('role', '!=', 'participant')->count() }}</span>
+                                </a>
+                                <a href="{{ route('admin.users.participants') }}" class="flex items-center justify-between rounded-lg px-4 py-2 transition hover:bg-amber-500/15 {{ request()->routeIs('admin.users.participants') || request()->routeIs('admin.users.create-participant') ? 'bg-amber-500/20 text-amber-300' : '' }}">
+                                    <span>{{ __('Participants') }}</span>
+                                    <span class="rounded-full bg-amber-500/20 px-2 py-0.5 text-xs text-amber-400">{{ \App\Models\User::where('role', 'participant')->count() }}</span>
+                                </a>
+                            </div>
+                        </div>
+                        <a href="{{ route('admin.languages.index') }}" class="flex items-center justify-between rounded-lg px-4 py-2 transition hover:bg-amber-500/15 {{ request()->routeIs('admin.languages.*') ? 'bg-amber-500/20 text-amber-300' : '' }}">
+                            <span>{{ __('Languages') }}</span>
+                            <span class="rounded-full bg-amber-500/20 px-2 py-0.5 text-xs text-amber-400">{{ \App\Models\Language::count() }}</span>
+                        </a>
+                        <a href="{{ route('admin.password-resets.index') }}" class="flex items-center justify-between rounded-lg px-4 py-2 transition hover:bg-amber-500/15 {{ request()->routeIs('admin.password-resets.*') ? 'bg-amber-500/20 text-amber-300' : '' }}">
+                            <span>{{ __('Password resets') }}</span>
+                            <span class="rounded-full bg-amber-500/20 px-2 py-0.5 text-xs font-semibold text-amber-400">
+                                {{ \App\Models\PasswordResetRequest::pending()->count() }}
+                            </span>
+                        </a>
                     @endif
-                    @if(auth()->user()->role !== 'participant')
-                    <a href="{{ route('ai-assistant.index') }}" class="flex items-center justify-between rounded-lg px-4 py-2 transition hover:bg-amber-500/15 {{ request()->routeIs('ai-assistant.*') ? 'bg-amber-500/20 text-amber-300' : '' }}">
-                        <span>{{ __('AI Assistant') }}</span>
-                        <span class="rounded-full bg-purple-500/30 px-2 py-0.5 text-xs font-semibold text-purple-100">
-                            {{ __('AI') }}
-                        </span>
-                    </a>
+
+                    @if($isAdmin || $isManager || $isAssessor)
+                        <a href="{{ $isManager && ! $isAdmin ? route('manager.assessments') : route('assessor.assessments') }}" class="flex items-center justify-between rounded-lg px-4 py-2 transition hover:bg-amber-500/15 {{ request()->routeIs('assessor.assessments') || request()->routeIs('manager.assessments') ? 'bg-amber-500/20 text-amber-300' : '' }}">
+                            <span>{{ __('Assessments') }}</span>
+                        </a>
                     @endif
-                    <a href="{{ route('dashboard.examinee-performance') }}" class="flex items-center justify-between rounded-lg px-4 py-2 transition hover:bg-amber-500/15 {{ request()->routeIs('dashboard.examinee-performance*') ? 'bg-amber-500/20 text-amber-300' : '' }}">
-                        <span>{{ __('Examinee Performance Dashboard') }}</span>
-                        <span class="rounded-full bg-green-500/30 px-2 py-0.5 text-xs font-semibold text-green-100">
-                            {{ __('Performance') }}
-                        </span>
-                    </a>
+                    @if($isAdmin || $isManager)
+                        <a href="{{ route('manager.participants') }}" class="flex items-center justify-between rounded-lg px-4 py-2 transition hover:bg-amber-500/15 {{ request()->routeIs('manager.participants') ? 'bg-amber-500/20 text-amber-300' : '' }}">
+                            <span>{{ __('Participants') }}</span>
+                        </a>
+                    @endif
+
+                    @if($isAdmin || $isManager || $isAssessor)
+                        <a href="{{ route('tests.index') }}" class="flex items-center justify-between rounded-lg px-4 py-2 transition hover:bg-amber-500/15 {{ request()->routeIs('tests.*') ? 'bg-amber-500/20 text-amber-300' : '' }}">
+                            <span>{{ __('Tests') }}</span>
+                            <span class="rounded-full bg-emerald-500/30 px-2 py-0.5 text-xs font-semibold text-emerald-100">
+                                {{ \App\Models\Test::count() }}
+                            </span>
+                        </a>
+                    @endif
+                    @if($isAdmin || $isManager || $isAssessor)
+                        <a href="{{ route('ai-assistant.index') }}" class="flex items-center justify-between rounded-lg px-4 py-2 transition hover:bg-amber-500/15 {{ request()->routeIs('ai-assistant.*') ? 'bg-amber-500/20 text-amber-300' : '' }}">
+                            <span>{{ __('AI Assistant') }}</span>
+                            <span class="rounded-full bg-purple-500/30 px-2 py-0.5 text-xs font-semibold text-purple-100">
+                                {{ __('AI') }}
+                            </span>
+                        </a>
+                        <a href="{{ route('dashboard.examinee-performance') }}" class="flex items-center justify-between rounded-lg px-4 py-2 transition hover:bg-amber-500/15 {{ request()->routeIs('dashboard.examinee-performance*') ? 'bg-amber-500/20 text-amber-300' : '' }}">
+                            <span>{{ __('Examinee Performance Dashboard') }}</span>
+                            <span class="rounded-full bg-green-500/30 px-2 py-0.5 text-xs font-semibold text-green-100">
+                                {{ __('Performance') }}
+                            </span>
+                        </a>
+                    @endif
                 </nav>
                 <div class="mt-auto px-6 pb-8 pt-6">
                     <form action="{{ route('locale.switch') }}" method="POST" class="space-y-2">
@@ -142,27 +193,49 @@
             </main>
         </div>
         <script>
-            // Users menu toggle
             document.addEventListener('DOMContentLoaded', function() {
-                const toggle = document.getElementById('users-menu-toggle');
-                const submenu = document.getElementById('users-submenu');
-                const icon = document.getElementById('users-menu-icon');
-                
-                if (toggle && submenu) {
-                    // Open by default if on users route
-                    const isUsersRoute = {{ request()->routeIs('admin.users.*') ? 'true' : 'false' }};
-                    if (isUsersRoute) {
-                        submenu.classList.remove('hidden');
-                        icon.classList.add('rotate-90');
+                const dashboardsToggle = document.getElementById('dashboards-menu-toggle');
+                const dashboardsMenu = document.getElementById('dashboards-submenu');
+                const dashboardsIcon = document.getElementById('dashboards-menu-icon');
+
+                if (dashboardsToggle && dashboardsMenu) {
+                    const isDashboardsRoute = {{ request()->routeIs('dashboard.*') ? 'true' : 'false' }};
+                    if (isDashboardsRoute) {
+                        dashboardsMenu.classList.remove('hidden');
+                        dashboardsIcon.classList.add('rotate-90');
                     }
-                    
-                    toggle.addEventListener('click', function() {
-                        submenu.classList.toggle('hidden');
-                        icon.classList.toggle('rotate-90');
+
+                    dashboardsToggle.addEventListener('click', function() {
+                        dashboardsMenu.classList.toggle('hidden');
+                        dashboardsIcon.classList.toggle('rotate-90');
                     });
                 }
             });
         </script>
+        @if($isAdmin)
+            <script>
+                // Users menu toggle
+                document.addEventListener('DOMContentLoaded', function() {
+                    const toggle = document.getElementById('users-menu-toggle');
+                    const submenu = document.getElementById('users-submenu');
+                    const icon = document.getElementById('users-menu-icon');
+
+                    if (toggle && submenu) {
+                        // Open by default if on users route
+                        const isUsersRoute = {{ request()->routeIs('admin.users.*') ? 'true' : 'false' }};
+                        if (isUsersRoute) {
+                            submenu.classList.remove('hidden');
+                            icon.classList.add('rotate-90');
+                        }
+
+                        toggle.addEventListener('click', function() {
+                            submenu.classList.toggle('hidden');
+                            icon.classList.toggle('rotate-90');
+                        });
+                    }
+                });
+            </script>
+        @endif
         @stack('scripts')
     </body>
 </html>

@@ -166,12 +166,15 @@ class AIService
      */
     public function scoreAssessment(array $assessmentData): array
     {
-        $prompt = $this->buildScoringPrompt($assessmentData);
+        $locale = app()->getLocale();
+        $prompt = $this->buildScoringPrompt($assessmentData, $locale);
 
         $messages = [
             [
                 'role' => 'system',
-                'content' => 'You are an expert psychometric assessor. Analyze assessment responses and provide detailed, objective scoring based on competency frameworks. Return structured JSON data with scores, rationale, and evidence.'
+                'content' => "You are an expert psychometric assessor. Analyze assessment responses and provide detailed, objective scoring based on competency frameworks. "
+                    . "The user interface language is '{$locale}'. If the participant responses are in Arabic, you MUST understand them and you MAY reply in Arabic when appropriate. "
+                    . "Return structured JSON data with scores, rationale, and evidence."
             ],
             [
                 'role' => 'user',
@@ -192,10 +195,12 @@ class AIService
      */
     public function analyzeQualitativeResponse(string $response, string $competencyContext = ''): array
     {
+        $locale = app()->getLocale();
         $messages = [
             [
                 'role' => 'system',
-                'content' => 'You are an expert in qualitative analysis for psychometric assessments. Extract key themes, behavioral indicators, strengths, and development areas from text responses. Return structured JSON data.'
+                'content' => "You are an expert in qualitative analysis for psychometric assessments. Extract key themes, behavioral indicators, strengths, and development areas from text responses. "
+                    . "The interface language is '{$locale}'. If the text is in Arabic, you MUST understand it and MAY respond in Arabic. Return structured JSON data."
             ],
             [
                 'role' => 'user',
@@ -218,10 +223,12 @@ class AIService
      */
     public function generateReportNarrative(array $reportData): string
     {
+        $locale = app()->getLocale();
         $messages = [
             [
                 'role' => 'system',
-                'content' => 'You are an expert assessment report writer. Create clear, professional, constructive narratives that summarize candidate performance, highlight strengths, identify development areas, and provide actionable recommendations.'
+                'content' => "You are an expert assessment report writer. Create clear, professional, constructive narratives that summarize candidate performance, highlight strengths, identify development areas, and provide actionable recommendations. "
+                    . "Write the report in the same language as the interface ('{$locale}'). If the locale is 'ar', write in modern standard Arabic."
             ],
             [
                 'role' => 'user',
@@ -242,10 +249,12 @@ class AIService
      */
     public function generateRecommendations(array $candidateProfile): array
     {
+        $locale = app()->getLocale();
         $messages = [
             [
                 'role' => 'system',
-                'content' => 'You are an expert talent development consultant. Based on assessment results, provide specific, actionable development recommendations including training activities, coaching focus areas, and developmental assignments. Return structured JSON data.'
+                'content' => "You are an expert talent development consultant. Based on assessment results, provide specific, actionable development recommendations including training activities, coaching focus areas, and developmental assignments. "
+                    . "Return structured JSON data and, when appropriate, use the interface language '{$locale}' (Arabic if 'ar')."
             ],
             [
                 'role' => 'user',
@@ -266,10 +275,12 @@ class AIService
      */
     public function identifyStrengthsWeaknesses(array $competencyScores): array
     {
+        $locale = app()->getLocale();
         $messages = [
             [
                 'role' => 'system',
-                'content' => 'You are an expert in competency assessment analysis. Identify key strengths and development areas based on competency scores and behavioral evidence. Return structured JSON data.'
+                'content' => "You are an expert in competency assessment analysis. Identify key strengths and development areas based on competency scores and behavioral evidence. "
+                    . "Return structured JSON data. Use the interface language '{$locale}' for any free-text descriptions (Arabic if 'ar')."
             ],
             [
                 'role' => 'user',
@@ -290,9 +301,16 @@ class AIService
     /**
      * Build scoring prompt from assessment data
      */
-    protected function buildScoringPrompt(array $assessmentData): string
+    protected function buildScoringPrompt(array $assessmentData, ?string $locale = null): string
     {
-        $prompt = "Please score the following assessment:\n\n";
+        $prompt = "Please score the following assessment.\n";
+        if ($locale === 'ar') {
+            $prompt .= "The user interface and reporting language is Arabic. You may write explanations in Modern Standard Arabic.\n\n";
+        } elseif ($locale) {
+            $prompt .= "The user interface language is '{$locale}'.\n\n";
+        } else {
+            $prompt .= "\n";
+        }
 
         $prompt .= "Assessment Title: " . ($assessmentData['title'] ?? 'N/A') . "\n";
         $prompt .= "Assessment Type: " . ($assessmentData['type'] ?? 'N/A') . "\n\n";

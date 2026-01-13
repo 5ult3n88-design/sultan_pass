@@ -248,32 +248,35 @@ class DatabaseSeeder extends Seeder
     {
         switch ($performanceLevel) {
             case 'high':
-                return rand(85, 95) / 10; // 8.5 to 9.5
+                return rand(85, 95); // 85 to 95 (0-100 scale)
             case 'low':
-                return rand(50, 65) / 10; // 5.0 to 6.5
+                return rand(50, 65); // 50 to 65 (0-100 scale)
             default:
-                return rand(65, 85) / 10; // 6.5 to 8.5
+                return rand(65, 85); // 65 to 85 (0-100 scale)
         }
     }
 
     private function generateCompetencyScore($performanceLevel, $competencyId, $allCompetencies): float
     {
         $baseScore = $this->generateScore($performanceLevel);
-        // Add some variation per competency
-        $variation = (rand(-5, 5) / 10);
+        // Add some variation per competency (on 0-100 scale, then convert to 0-5 for assessor_notes)
+        $variation = rand(-5, 5);
         $score = $baseScore + $variation;
-        return max(2.0, min(5.0, $score));
+        // Convert 0-100 scale to 0-5 scale for assessor_notes (which uses 0-5 scale)
+        $scoreOnFiveScale = ($score / 100) * 5;
+        return max(2.0, min(5.0, $scoreOnFiveScale));
     }
 
     private function generateDetailedFeedback($score, $name): string
     {
-        if ($score >= 8.5) {
+        // Score is now on 0-100 scale
+        if ($score >= 85) {
             return "$name demonstrated exceptional performance across all competencies. Shows strong leadership potential, excellent problem-solving abilities, and outstanding communication skills. Highly recommended for advancement opportunities.";
-        } elseif ($score >= 7.5) {
+        } elseif ($score >= 75) {
             return "$name showed strong performance with notable strengths in key areas. Demonstrates good analytical thinking and effective teamwork. Shows clear potential for career advancement with targeted development.";
-        } elseif ($score >= 6.5) {
+        } elseif ($score >= 65) {
             return "$name delivered solid performance with consistent competency demonstration. Shows capability in most areas with room for development in strategic thinking and decision-making. Recommend focused training programs.";
-        } elseif ($score >= 5.5) {
+        } elseif ($score >= 55) {
             return "$name showed adequate performance but requires significant development in several competencies. Needs improvement in leadership skills and technical expertise. Recommend comprehensive development plan.";
         } else {
             return "$name's performance indicates need for substantial improvement across multiple competencies. Requires intensive training and close mentoring to meet role requirements. Consider reassignment or extended development period.";

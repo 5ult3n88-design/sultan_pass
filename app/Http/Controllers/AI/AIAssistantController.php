@@ -126,15 +126,30 @@ class AIAssistantController extends Controller
 
             // Generate AI response
             $prompt = $this->buildPrompt($mode, $context, $question);
+            $locale = app()->getLocale();
+            $systemInstruction = "You are an experienced organizational psychologist who understands each applicant through their assessment data. "
+                . "Provide clear, concise, and human insights. Use short paragraphs and simple bullet points. "
+                . "Be warm, empathetic, and avoid repetition. "
+                . "CRITICAL: Use ONLY plain text. Never use markdown symbols like **, ###, ####, or other formatting characters. ";
+
+            if ($locale === 'ar') {
+                $systemInstruction .= "The user interface language is Arabic. You MUST write your entire answer in Modern Standard Arabic only. "
+                    . "Do NOT use any Chinese characters or Chinese words at all. "
+                    . "If the input contains English or Chinese, understand it internally but rephrase everything in Arabic.";
+            } else {
+                $systemInstruction .= "Respond in the interface language '{$locale}' when possible and avoid using Chinese characters "
+                    . "unless the user explicitly asks for a Chinese translation.";
+            }
+
             $response = $this->localAI->chat([
                 [
                     'role' => 'system',
-                    'content' => 'You are an expert HR psychometric assessment analyst. Provide clear, concise, and well-organized insights. Use bullet points and short paragraphs. Be direct and avoid repetition. Format your response with clear sections using ALL-CAPS headers. CRITICAL: Use ONLY plain text. Never use markdown symbols like **, ###, ####, or other formatting characters.'
+                    'content' => $systemInstruction,
                 ],
                 [
                     'role' => 'user',
-                    'content' => $prompt
-                ]
+                    'content' => $prompt,
+                ],
             ], ['temperature' => 0.5, 'max_tokens' => 500]);
 
             $aiResponse = $response['choices'][0]['message']['content'];
@@ -196,82 +211,94 @@ class AIAssistantController extends Controller
     protected function buildPrompt(string $mode, array $context, $question): string
     {
         $prompt = '';
+        $locale = app()->getLocale();
+        $isArabic = $locale === 'ar';
 
         switch ($mode) {
             case 'test_based':
-                $prompt = "Analyze assessment performance.\n\n";
-                $prompt .= "PARTICIPANT: " . $context['participants'][0]['name'] . " - " . ($context['participants'][0]['rank'] ?? 'N/A') . " (" . ($context['participants'][0]['department'] ?? 'N/A') . ")\n\n";
+                $prompt = "CONTEXT (for you only, do not repeat mechanically):\n";
+                $prompt .= "Participant: " . $context['participants'][0]['name'] . " - "
+                    . ($context['participants'][0]['rank'] ?? 'N/A')
+                    . " (" . ($context['participants'][0]['department'] ?? 'N/A') . ")\n";
 
                 if (!empty($context['participants'][0]['assessments'])) {
-                    $prompt .= "ASSESSMENT:\n";
+                    $prompt .= "Related assessments:\n";
                     foreach ($context['participants'][0]['assessments'] as $assessment) {
-                        $prompt .= "- " . ucfirst($assessment['type']) . " (" . $assessment['date'] . ")\n";
+                        $prompt .= "- " . ucfirst($assessment['type']) . " on " . $assessment['date'] . "\n";
                     }
                 }
 
-                if ($question) {
-                    $prompt .= "\nFOCUS: " . $question . "\n";
-                }
+                $prompt .= "\nUSER QUESTION (answer this kindly and directly):\n";
+                $prompt .= $question ?: ($isArabic
+                    ? "أعطني انطباعاً نفسياً عاماً عن أداء هذا المشارك في هذا الاختبار."
+                    : "Give me a brief psychological view of this participant's performance in the test.");
 
-                $prompt .= "\nProvide:\n1. PERFORMANCE SUMMARY (2-3 sentences)\n2. KEY STRENGTHS (3 bullet points)\n3. AREAS FOR IMPROVEMENT (3 bullet points)\n4. RECOMMENDATION (1-2 sentences)";
+                $prompt .= "\n\nUse the assessments as background only. Speak like a psychologist talking to a colleague: "
+                    . "1–2 short paragraphs and a few concrete observations or suggestions.";
                 break;
 
             case 'mission_based':
-                $prompt = "Evaluate mission fit.\n\n";
-                $prompt .= "CANDIDATE: " . $context['participants'][0]['name'] . " - " . ($context['participants'][0]['rank'] ?? 'N/A') . " (" . ($context['participants'][0]['department'] ?? 'N/A') . ")\n";
-                $prompt .= "Assessments Completed: " . count($context['participants'][0]['assessments']) . "\n\n";
+                $prompt = "CONTEXT (for you only, do not repeat mechanically):\n";
+                $prompt .= "Candidate: " . $context['participants'][0]['name'] . " - "
+                    . ($context['participants'][0]['rank'] ?? 'N/A')
+                    . " (" . ($context['participants'][0]['department'] ?? 'N/A') . ")\n";
+                $prompt .= "Assessments completed: " . count($context['participants'][0]['assessments']) . "\n\n";
 
                 if ($context['mission']) {
-                    $prompt .= "MISSION:\n" . $context['mission'] . "\n\n";
+                    $prompt .= "Mission / role description:\n" . $context['mission'] . "\n\n";
                 }
 
-                if ($question) {
-                    $prompt .= "FOCUS: " . $question . "\n\n";
-                }
+                $prompt .= "USER QUESTION (answer this as a psychologist thinking about mission fit):\n";
+                $prompt .= $question ?: ($isArabic
+                    ? "هل هذا المشارك مناسب لهذه المهمة من ناحية السلوك والكفاءة النفسية؟"
+                    : "Is this participant a good fit for this mission from a behavioral and psychological perspective?");
 
-                $prompt .= "Provide:\n1. FIT ASSESSMENT (Good/Fair/Poor with 1-2 sentence reason)\n2. RELEVANT STRENGTHS (3 bullet points)\n3. GAPS TO ADDRESS (3 bullet points)\n4. RECOMMENDATION (1-2 sentences)";
+                $prompt .= "\n\nUse the assessments only as background. Give a short, human explanation of fit, "
+                    . "with 2–3 key strengths and 2–3 concerns in natural language.";
                 break;
 
             case 'overall':
-                $prompt = "Provide overall candidate analysis.\n\n";
-                $prompt .= "CANDIDATE: " . $context['participants'][0]['name'] . " - " . ($context['participants'][0]['rank'] ?? 'N/A') . " (" . ($context['participants'][0]['department'] ?? 'N/A') . ")\n";
-                $prompt .= "Total Assessments: " . count($context['participants'][0]['assessments']) . "\n\n";
+                $prompt = "CONTEXT (for you only, do not repeat mechanically):\n";
+                $prompt .= "Candidate: " . $context['participants'][0]['name'] . " - "
+                    . ($context['participants'][0]['rank'] ?? 'N/A')
+                    . " (" . ($context['participants'][0]['department'] ?? 'N/A') . ")\n";
+                $prompt .= "Total assessments: " . count($context['participants'][0]['assessments']) . "\n\n";
 
-                if ($question) {
-                    $prompt .= "FOCUS: " . $question . "\n\n";
-                }
+                $prompt .= "USER QUESTION (overall psychological reflection):\n";
+                $prompt .= $question ?: ($isArabic
+                    ? "أعطني صورة نفسية عامة عن هذا المشارك، نقاط قوته والجوانب التي تحتاج إلى دعم."
+                    : "Give me an overall psychological view of this participant, including key strengths and areas that need support.");
 
-                $prompt .= "Provide:\n1. OVERALL PROFILE (2-3 sentences)\n2. TOP COMPETENCIES (4 bullet points)\n3. DEVELOPMENT NEEDS (3 bullet points)\n4. CAREER POTENTIAL (1-2 sentences)";
+                $prompt .= "\n\nReply in a warm, human tone, as if you know the candidate well from their assessments. "
+                    . "1–2 short paragraphs are enough, plus a few practical suggestions.";
                 break;
 
             case 'comparison':
-                $prompt = "Compare candidates for a leadership mission.\n\n";
-
-                $prompt .= "CANDIDATES:\n";
+                $prompt = "CONTEXT (for you only, do not repeat mechanically):\n";
+                $prompt .= "We are comparing several candidates for a mission.\n";
+                $prompt .= "Candidates:\n";
                 foreach ($context['participants'] as $i => $participant) {
-                    $prompt .= ($i + 1) . ". " . $participant['name'] . " - " . ($participant['rank'] ?? 'N/A') . " (" . ($participant['department'] ?? 'N/A') . ")\n";
+                    $prompt .= ($i + 1) . ". " . $participant['name'] . " - "
+                        . ($participant['rank'] ?? 'N/A')
+                        . " (" . ($participant['department'] ?? 'N/A') . ")\n";
                 }
 
                 if ($context['mission']) {
-                    $prompt .= "\nMISSION REQUIREMENTS:\n" . $context['mission'] . "\n";
+                    $prompt .= "\nMission requirements:\n" . $context['mission'] . "\n";
                 }
 
                 if ($question) {
-                    $prompt .= "\nFOCUS: " . $question . "\n";
+                    $prompt .= "\nUSER QUESTION (focus of the comparison):\n" . $question . "\n";
                 }
 
-                $prompt .= "\nProvide (use plain text, NO markdown symbols like **, ###, or ####):\n";
-                $prompt .= "1. RANKING\n";
-                $prompt .= "   1st: [Candidate Name] - [One sentence reason]\n";
-                $prompt .= "   2nd: [Candidate Name] - [One sentence reason]\n\n";
-                $prompt .= "2. KEY STRENGTHS\n";
-                $prompt .= "   - [Strength 1]\n";
-                $prompt .= "   - [Strength 2]\n";
-                $prompt .= "   - [Strength 3]\n\n";
-                $prompt .= "3. RECOMMENDATION\n";
-                $prompt .= "   [2-3 sentences]\n\n";
-                $prompt .= "IMPORTANT: Use ONLY plain text. Do NOT use markdown formatting symbols.";
+                $prompt .= "\nUse the assessment history only as background. Give a short, intuitive comparison like a psychologist advising a selection panel: "
+                    . "who seems the best fit and why, and any major psychological risks or support needs.";
                 break;
+        }
+
+        if ($isArabic) {
+            $prompt .= "\n\nمهم: استخدم لغة عربية فصحى بسيطة وواضحة، وتحدّث بأسلوب إنساني موجّه للمستخدم، "
+                . "وليس تقريراً رقمياً جامداً.";
         }
 
         return $prompt;

@@ -108,6 +108,10 @@ Route::middleware('auth')->group(function () {
         ->middleware('role:participant,manager,admin')
         ->name('assessments.take');
 
+    Route::post('assessments/{assessment}/responses', [SurveyController::class, 'storeResponse'])
+        ->middleware('role:participant,manager,admin')
+        ->name('assessments.store-response');
+
     Route::get('assessments/{assessment}/review', [SurveyController::class, 'assessorReport'])
         ->middleware('role:assessor,admin')
         ->name('assessments.review');

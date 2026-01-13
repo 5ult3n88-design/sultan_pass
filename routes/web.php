@@ -149,6 +149,11 @@ Route::middleware('auth')->group(function () {
         Route::get('tests/{test}/edit', [\App\Http\Controllers\TestController::class, 'edit'])->name('tests.edit');
         Route::put('tests/{test}', [\App\Http\Controllers\TestController::class, 'update'])->name('tests.update');
         Route::delete('tests/{test}', [\App\Http\Controllers\TestController::class, 'destroy'])->name('tests.destroy');
+
+        // Test grading/correction routes
+        Route::get('tests/{test}/grade', [\App\Http\Controllers\TestController::class, 'grade'])->name('tests.grade');
+        Route::get('tests/{test}/grade/{assignment}', [\App\Http\Controllers\TestController::class, 'gradeAssignment'])->name('tests.grade-assignment');
+        Route::post('tests/{test}/grade/{assignment}', [\App\Http\Controllers\TestController::class, 'saveGrade'])->name('tests.save-grade');
     });
 
     // Assessor routes

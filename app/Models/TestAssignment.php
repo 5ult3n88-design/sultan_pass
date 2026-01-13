@@ -52,6 +52,11 @@ class TestAssignment extends Model
         return $this->hasOne(TestResult::class);
     }
 
+    public function testResult(): HasOne
+    {
+        return $this->hasOne(TestResult::class);
+    }
+
     // Helper methods
     public function isCompleted(): bool
     {

@@ -273,6 +273,117 @@ class TestController extends Controller
             ->with('success', __('Test deleted successfully!'));
     }
 
+    // View test submissions for grading
+    public function grade(Test $test)
+    {
+        $assignments = $test->assignments()
+            ->with(['participant', 'testResult'])
+            ->latest()
+            ->paginate(20);
+
+        return view('tests.grade', compact('test', 'assignments'));
+    }
+
+    // Grade specific assignment
+    public function gradeAssignment(Test $test, \App\Models\TestAssignment $assignment)
+    {
+        abort_unless($assignment->test_id === $test->id, 404);
+
+        $assignment->load([
+            'participant',
+            'test.questions.answerChoices',
+            'responses.question',
+            'responses.selectedChoice',
+            'testResult'
+        ]);
+
+        $questions = $test->questions()->with('answerChoices')->orderBy('order')->get();
+
+        return view('tests.grade-assignment', compact('test', 'assignment', 'questions'));
+    }
+
+    // Save grades for typed answers
+    public function saveGrade(Request $request, Test $test, \App\Models\TestAssignment $assignment)
+    {
+        abort_unless($assignment->test_id === $test->id, 404);
+
+        $request->validate([
+            'responses' => 'required|array',
+            'responses.*.marks_awarded' => 'nullable|integer|min:0',
+            'responses.*.assessor_feedback' => 'nullable|string',
+            'responses.*.assigned_category_id' => 'nullable|integer',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            $totalMarks = 0;
+            $categoryScores = [];
+
+            foreach ($request->responses as $responseId => $gradeData) {
+                $response = \App\Models\TestResponse::findOrFail($responseId);
+
+                $response->update([
+                    'is_graded' => true,
+                    'marks_awarded' => $gradeData['marks_awarded'] ?? null,
+                    'assessor_feedback' => $gradeData['assessor_feedback'] ?? null,
+                    'assigned_category_id' => $gradeData['assigned_category_id'] ?? null,
+                    'graded_by' => auth()->id(),
+                    'graded_at' => now(),
+                ]);
+
+                if ($test->isPercentile() && isset($gradeData['marks_awarded'])) {
+                    $totalMarks += $gradeData['marks_awarded'];
+                }
+
+                if ($test->isCategorical() && isset($gradeData['assigned_category_id'])) {
+                    $catId = $gradeData['assigned_category_id'];
+                    $categoryScores[$catId] = ($categoryScores[$catId] ?? 0) + 1;
+                }
+            }
+
+            // Recalculate test result
+            $result = $assignment->testResult;
+            if ($result) {
+                if ($test->isPercentile()) {
+                    $autoGradedMarks = \App\Models\TestResponse::where('test_assignment_id', $assignment->id)
+                        ->whereNotNull('marks_awarded')
+                        ->sum('marks_awarded');
+
+                    $result->total_marks_obtained = $autoGradedMarks;
+                    $possible = $test->total_marks ?: $test->questions->sum('marks');
+                    $result->percentage = $possible > 0 ? round(($autoGradedMarks / $possible) * 100, 2) : null;
+                    $result->result_status = $test->passing_marks
+                        ? ($autoGradedMarks >= $test->passing_marks ? 'pass' : 'fail')
+                        : null;
+                }
+
+                if ($test->isCategorical() && !empty($categoryScores)) {
+                    $existingScores = json_decode($result->category_scores, true) ?: [];
+                    foreach ($categoryScores as $catId => $count) {
+                        $existingScores[$catId] = ($existingScores[$catId] ?? 0) + $count;
+                    }
+                    $result->category_scores = $existingScores;
+
+                    arsort($existingScores);
+                    $result->dominant_category_id = array_key_first($existingScores);
+                }
+
+                $result->save();
+            }
+
+            $assignment->update(['status' => 'graded']);
+
+            DB::commit();
+
+            return redirect()->route('tests.grade', $test)
+                ->with('success', __('Grades saved successfully!'));
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', __('Failed to save grades: ') . $e->getMessage());
+        }
+    }
+
     // Helper to generate random colors for categories
     private function generateRandomColor()
     {

@@ -38,10 +38,24 @@
         </header>
         <div class="mx-auto max-w-6xl px-6">
             @auth
-                @if(auth()->user()->role === 'assessor' || auth()->user()->role === 'manager')
+                @if(auth()->user()->role === 'participant')
                     <nav class="border-b border-white/10 py-4 mb-6">
                         <div class="flex items-center gap-4 text-sm">
-                            <a href="{{ auth()->user()->role === 'assessor' ? route('dashboard.assessor') : route('dashboard.manager') }}" class="px-3 py-2 rounded-lg transition {{ request()->routeIs('dashboard.*') ? 'bg-uae-gold-300/20 text-uae-gold-200' : 'text-slate-300 hover:bg-white/5' }}">
+                            <a href="{{ route('dashboard.participant') }}" class="px-3 py-2 rounded-lg transition {{ request()->routeIs('dashboard.participant') ? 'bg-uae-gold-300/20 text-uae-gold-200' : 'text-slate-300 hover:bg-white/5' }}">
+                                {{ __('My Dashboard') }}
+                            </a>
+                            <a href="{{ route('tests.available') }}" class="px-3 py-2 rounded-lg transition {{ request()->routeIs('tests.*') ? 'bg-uae-gold-300/20 text-uae-gold-200' : 'text-slate-300 hover:bg-white/5' }}">
+                                {{ __('My Tests') }}
+                            </a>
+                            <a href="{{ route('dashboard.examinee-performance') }}" class="px-3 py-2 rounded-lg transition {{ request()->routeIs('dashboard.examinee-performance*') ? 'bg-uae-gold-300/20 text-uae-gold-200' : 'text-slate-300 hover:bg-white/5' }}">
+                                {{ __('My Performance') }}
+                            </a>
+                        </div>
+                    </nav>
+                @elseif(auth()->user()->role === 'assessor' || auth()->user()->role === 'manager')
+                    <nav class="border-b border-white/10 py-4 mb-6">
+                        <div class="flex items-center gap-4 text-sm">
+                            <a href="{{ auth()->user()->role === 'assessor' ? route('dashboard.assessor') : route('dashboard.manager') }}" class="px-3 py-2 rounded-lg transition {{ request()->routeIs('dashboard.*') && !request()->routeIs('dashboard.examinee-performance*') ? 'bg-uae-gold-300/20 text-uae-gold-200' : 'text-slate-300 hover:bg-white/5' }}">
                                 {{ __('Dashboard') }}
                             </a>
                             <a href="{{ auth()->user()->role === 'assessor' ? route('assessor.assessments') : route('manager.assessments') }}" class="px-3 py-2 rounded-lg transition {{ request()->routeIs(auth()->user()->role . '.assessments') ? 'bg-uae-gold-300/20 text-uae-gold-200' : 'text-slate-300 hover:bg-white/5' }}">
@@ -49,6 +63,9 @@
                             </a>
                             <a href="{{ auth()->user()->role === 'assessor' ? route('assessor.participants') : route('manager.participants') }}" class="px-3 py-2 rounded-lg transition {{ request()->routeIs(auth()->user()->role . '.participants') ? 'bg-uae-gold-300/20 text-uae-gold-200' : 'text-slate-300 hover:bg-white/5' }}">
                                 {{ __('Participants') }}
+                            </a>
+                            <a href="{{ route('dashboard.examinee-performance') }}" class="px-3 py-2 rounded-lg transition {{ request()->routeIs('dashboard.examinee-performance*') ? 'bg-uae-gold-300/20 text-uae-gold-200' : 'text-slate-300 hover:bg-white/5' }}">
+                                {{ __('Performance Dashboard') }}
                             </a>
                         </div>
                     </nav>

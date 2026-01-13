@@ -159,23 +159,38 @@ class DashboardController extends Controller
 
     protected function calculateOverallScore(User $participant): float
     {
-        if (!Schema::hasTable('assessment_participants')) {
-            return 0.0;
+        $scores = collect();
+
+        // Get scores from old assessment system
+        if (Schema::hasTable('assessment_participants')) {
+            $assessmentScores = DB::table('assessment_participants')
+                ->where('participant_id', $participant->id)
+                ->where('status', 'completed')
+                ->whereNotNull('score')
+                ->pluck('score')
+                ->map(function ($score) {
+                    // Convert old 0-10 scale scores to 0-100 scale
+                    if ($score < 20) {
+                        return (float) $score * 10;
+                    }
+                    return (float) $score;
+                });
+
+            $scores = $scores->merge($assessmentScores);
         }
 
-        $scores = DB::table('assessment_participants')
-            ->where('participant_id', $participant->id)
-            ->where('status', 'completed')
-            ->whereNotNull('score')
-            ->pluck('score')
-            ->map(function ($score) {
-                // Convert old 0-10 scale scores to 0-100 scale
-                // If score is less than 20, assume it's on old 0-10 scale
-                if ($score < 20) {
-                    return (float) $score * 10;
-                }
-                return (float) $score;
-            });
+        // Get scores from new test system
+        if (Schema::hasTable('test_results') && Schema::hasTable('test_assignments')) {
+            $testScores = DB::table('test_results as tr')
+                ->join('test_assignments as ta', 'ta.id', '=', 'tr.test_assignment_id')
+                ->where('ta.participant_id', $participant->id)
+                ->where('ta.status', 'graded')
+                ->whereNotNull('tr.percentage')
+                ->pluck('tr.percentage')
+                ->map(fn($score) => (float) $score);
+
+            $scores = $scores->merge($testScores);
+        }
 
         if ($scores->isEmpty()) {
             return 0.0;
@@ -290,38 +305,64 @@ class DashboardController extends Controller
 
     protected function getIQTestResults(User $participant): array
     {
-        if (!Schema::hasTable('assessment_participants') || !Schema::hasTable('assessments')) {
-            return ['score' => null, 'test_name' => null, 'test_date' => null];
+        // Try to get from new test system first
+        if (Schema::hasTable('tests') && Schema::hasTable('test_assignments') && Schema::hasTable('test_results')) {
+            $testResult = DB::table('test_assignments as ta')
+                ->join('tests as t', 't.id', '=', 'ta.test_id')
+                ->join('test_results as tr', 'tr.test_assignment_id', '=', 'ta.id')
+                ->where('ta.participant_id', $participant->id)
+                ->where('ta.status', 'graded')
+                ->where('t.test_type', 'percentile')
+                ->whereNotNull('tr.total_marks_obtained')
+                ->select(
+                    't.title',
+                    't.total_marks',
+                    'tr.total_marks_obtained',
+                    'tr.percentage',
+                    'tr.completed_at'
+                )
+                ->orderBy('tr.completed_at', 'desc')
+                ->first();
+
+            if ($testResult) {
+                $score = min(100, max(0, (float) $testResult->percentage));
+                return [
+                    'score' => $score,
+                    'test_name' => $testResult->title,
+                    'test_date' => \Carbon\Carbon::parse($testResult->completed_at)->translatedFormat('F Y'),
+                ];
+            }
         }
 
-        // Get the most recent IQ test result (assessments whose title contains 'IQ')
-        $iqResult = DB::table('assessment_participants as ap')
-            ->join('assessments as a', 'a.id', '=', 'ap.assessment_id')
-            ->join('assessment_translations as at', 'at.assessment_id', '=', 'a.id')
-            ->where('ap.participant_id', $participant->id)
-            ->where('at.title', 'like', '%IQ%')
-            ->where('ap.status', 'completed')
-            ->whereNotNull('ap.score')
-            ->select(
-                'at.title',
-                'ap.score',
-                'ap.updated_at'
-            )
-            ->orderBy('ap.updated_at', 'desc')
-            ->first();
+        // Fallback to old assessment system
+        if (Schema::hasTable('assessment_participants') && Schema::hasTable('assessments')) {
+            // Get the most recent IQ test result (assessments whose title contains 'IQ')
+            $iqResult = DB::table('assessment_participants as ap')
+                ->join('assessments as a', 'a.id', '=', 'ap.assessment_id')
+                ->join('assessment_translations as at', 'at.assessment_id', '=', 'a.id')
+                ->where('ap.participant_id', $participant->id)
+                ->where('at.title', 'like', '%IQ%')
+                ->where('ap.status', 'completed')
+                ->whereNotNull('ap.score')
+                ->select(
+                    'at.title',
+                    'ap.score',
+                    'ap.updated_at'
+                )
+                ->orderBy('ap.updated_at', 'desc')
+                ->first();
 
-        if (!$iqResult) {
-            return ['score' => null, 'test_name' => null, 'test_date' => null];
+            if ($iqResult) {
+                $score = min(100, max(0, (float) $iqResult->score));
+                return [
+                    'score' => $score,
+                    'test_name' => $iqResult->title,
+                    'test_date' => \Carbon\Carbon::parse($iqResult->updated_at)->translatedFormat('F Y'),
+                ];
+            }
         }
 
-        // Normalize score to 0-100 if needed (assuming score is already 0-100)
-        $score = min(100, max(0, (float) $iqResult->score));
-        
-        return [
-            'score' => $score,
-            'test_name' => $iqResult->title,
-            'test_date' => \Carbon\Carbon::parse($iqResult->updated_at)->translatedFormat('F Y'),
-        ];
+        return ['score' => null, 'test_name' => null, 'test_date' => null];
     }
 
     protected function getPerformanceTrends(User $participant): array
@@ -720,7 +761,7 @@ class DashboardController extends Controller
                 't.title as test_title',
                 't.total_marks',
                 'u.id as participant_id',
-                DB::raw('COALESCE(u.name, u.username) as participant_name'),
+                DB::raw('COALESCE(u.full_name, u.username) as participant_name'),
                 'u.email as participant_email',
                 'tr.total_marks_obtained as current_score',
             ])

@@ -3,6 +3,11 @@ import { Chart, registerables } from 'chart.js';
 
 Chart.register(...registerables);
 
+// Expose Chart globally so inline Blade scripts can use it
+// (e.g., the examinee performance dashboard)
+// eslint-disable-next-line no-undef
+window.Chart = Chart;
+
 const themeStorageKey = 'pass-theme';
 const root = document.documentElement;
 

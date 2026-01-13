@@ -9,6 +9,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
@@ -80,11 +81,280 @@ class DashboardController extends Controller
         return view('dashboards.assessor', compact('assignedAssessments', 'pendingEvaluations'));
     }
 
-    public function participant(): View
+    public function participant(Request $request): View
     {
-        $assignments = $this->participantEvaluations();
+        $user = $request->user();
 
-        return view('dashboards.participant', compact('assignments'));
+        // Assessments where this user is already a participant
+        $assignments = $this->participantEvaluations(statusFilter: null, participantId: $user->id);
+
+        // Published / active assessments that this user has not yet started
+        $availableAssessments = $this->availableAssessmentsForParticipant($user);
+
+        return view('dashboards.participant', compact('assignments', 'availableAssessments'));
+    }
+
+    public function examineePerformance(Request $request, ?User $participant = null): View
+    {
+        $currentUser = $request->user();
+        $canViewOthers = in_array($currentUser->role, ['admin', 'manager', 'assessor'], true);
+
+        // If a participant is passed via route, respect it only for privileged roles
+        if ($participant && ! $canViewOthers) {
+            $participant = $currentUser;
+        }
+
+        // If no participant from route, optionally pick from query param (for dropdown)
+        if (! $participant) {
+            $participantId = (int) $request->query('participant_id', 0);
+
+            if ($canViewOthers && $participantId > 0) {
+                $participant = User::query()
+                    ->where('role', 'participant')
+                    ->find($participantId);
+            }
+
+            if (! $participant) {
+                $participant = $currentUser;
+            }
+        }
+
+        // Build participant list (for selector) for privileged roles
+        $participantsList = collect();
+        if ($canViewOthers) {
+            $participantsList = User::query()
+                ->where('role', 'participant')
+                ->orderByRaw('COALESCE(full_name, username)')
+                ->get(['id', 'full_name', 'username', 'department']);
+        }
+
+        // Get overall evaluation score (0-100%)
+        $overallScore = $this->calculateOverallScore($participant);
+
+        // Get psychometric test categories with scores (for pie chart)
+        $categoryScores = $this->getCategoryScores($participant);
+
+        // Get IQ test results (for bar chart)
+        $iqTestResults = $this->getIQTestResults($participant);
+
+        // Get performance trends over time (for bottom-right chart)
+        $performanceTrends = $this->getPerformanceTrends($participant);
+
+        return view('dashboards.examinee-performance', compact(
+            'participant',
+            'participantsList',
+            'overallScore',
+            'categoryScores',
+            'iqTestResults',
+            'performanceTrends'
+        ));
+    }
+
+    protected function calculateOverallScore(User $participant): float
+    {
+        if (!Schema::hasTable('assessment_participants')) {
+            return 0.0;
+        }
+
+        $scores = DB::table('assessment_participants')
+            ->where('participant_id', $participant->id)
+            ->where('status', 'completed')
+            ->whereNotNull('score')
+            ->pluck('score')
+            ->map(function ($score) {
+                // Convert old 0-10 scale scores to 0-100 scale
+                // If score is less than 20, assume it's on old 0-10 scale
+                if ($score < 20) {
+                    return (float) $score * 10;
+                }
+                return (float) $score;
+            });
+
+        if ($scores->isEmpty()) {
+            return 0.0;
+        }
+
+        $avgScore = $scores->avg();
+
+        // Normalize to 0-100
+        return min(100, max(0, round($avgScore, 2)));
+    }
+
+    protected function getCategoryScores(User $participant): array
+    {
+        if (!Schema::hasTable('participant_responses') || !Schema::hasTable('assessment_categories')) {
+            return ['labels' => [], 'values' => [], 'colors' => []];
+        }
+
+        // Get all participant responses (MCQ + written) that have either
+        // selected answers or graded category weights.
+        $responses = DB::table('participant_responses')
+            ->where('participant_id', $participant->id)
+            ->where(function ($q) {
+                $q->whereNotNull('selected_answer_ids')
+                    ->orWhereNotNull('graded_categories');
+            })
+            ->get();
+
+        if ($responses->isEmpty()) {
+            return ['labels' => [], 'values' => [], 'colors' => []];
+        }
+
+        // Calculate category scores from answer weights and graded categories
+        $categoryTotals = [];
+        $categoryMax = [];
+        $categoryInfo = [];
+
+        foreach ($responses as $response) {
+            // 1) MCQ questions: infer categories from selected answers
+            $selectedAnswerIds = json_decode($response->selected_answer_ids ?? '[]', true);
+            if (is_array($selectedAnswerIds) && !empty($selectedAnswerIds)) {
+                $weights = DB::table('answer_category_weights as acw')
+                    ->join('assessment_categories as ac', 'ac.id', '=', 'acw.category_id')
+                    ->whereIn('acw.answer_id', $selectedAnswerIds)
+                    ->select('ac.id', 'ac.name', 'ac.color', 'acw.weight')
+                    ->get();
+
+                foreach ($weights as $weight) {
+                    $catId = $weight->id;
+                    if (!isset($categoryTotals[$catId])) {
+                        $categoryTotals[$catId] = 0;
+                        $categoryMax[$catId] = 0;
+                        $categoryInfo[$catId] = [
+                            'name' => $weight->name,
+                            'color' => $weight->color ?: '#B68A35',
+                        ];
+                    }
+
+                    $categoryTotals[$catId] += (float) $weight->weight;
+                    // Assume max weight of 3.0 per answer by default
+                    $categoryMax[$catId] += 3.0;
+                }
+            }
+
+            // 2) Written questions graded by assessor: use graded_categories JSON
+            if (!empty($response->graded_categories)) {
+                $gradedCategories = json_decode($response->graded_categories, true);
+                if (is_array($gradedCategories)) {
+                    foreach ($gradedCategories as $catId => $weight) {
+                        if (!isset($categoryTotals[$catId])) {
+                            // Look up category info once
+                            $category = DB::table('assessment_categories')->where('id', $catId)->first();
+                            $categoryInfo[$catId] = [
+                                'name' => $category->name ?? __('Category :id', ['id' => $catId]),
+                                'color' => $category->color ?? '#B68A35',
+                            ];
+                            $categoryTotals[$catId] = 0;
+                            $categoryMax[$catId] = 0;
+                        }
+
+                        $categoryTotals[$catId] += (float) $weight;
+                        // Assume max weight of 3.0 per graded category value
+                        $categoryMax[$catId] += 3.0;
+                    }
+                }
+            }
+        }
+
+        if (empty($categoryTotals)) {
+            return ['labels' => [], 'values' => [], 'colors' => []];
+        }
+
+        // Normalize each category total to 0-100 based on its max weight
+        $labels = [];
+        $values = [];
+        $colors = [];
+
+        foreach ($categoryTotals as $catId => $total) {
+            $max = max($categoryMax[$catId] ?? 0, 1);
+            $normalizedScore = min(100, max(0, ($total / $max) * 100));
+
+            $labels[] = $categoryInfo[$catId]['name'] ?? __('Category :id', ['id' => $catId]);
+            $values[] = round($normalizedScore, 1);
+            $colors[] = $categoryInfo[$catId]['color'] ?? '#B68A35';
+        }
+
+        return [
+            'labels' => $labels,
+            'values' => $values,
+            'colors' => $colors,
+        ];
+    }
+
+    protected function getIQTestResults(User $participant): array
+    {
+        if (!Schema::hasTable('assessment_participants') || !Schema::hasTable('assessments')) {
+            return ['score' => null, 'test_name' => null, 'test_date' => null];
+        }
+
+        // Get the most recent IQ test result (assessments whose title contains 'IQ')
+        $iqResult = DB::table('assessment_participants as ap')
+            ->join('assessments as a', 'a.id', '=', 'ap.assessment_id')
+            ->join('assessment_translations as at', 'at.assessment_id', '=', 'a.id')
+            ->where('ap.participant_id', $participant->id)
+            ->where('at.title', 'like', '%IQ%')
+            ->where('ap.status', 'completed')
+            ->whereNotNull('ap.score')
+            ->select(
+                'at.title',
+                'ap.score',
+                'ap.updated_at'
+            )
+            ->orderBy('ap.updated_at', 'desc')
+            ->first();
+
+        if (!$iqResult) {
+            return ['score' => null, 'test_name' => null, 'test_date' => null];
+        }
+
+        // Normalize score to 0-100 if needed (assuming score is already 0-100)
+        $score = min(100, max(0, (float) $iqResult->score));
+        
+        return [
+            'score' => $score,
+            'test_name' => $iqResult->title,
+            'test_date' => \Carbon\Carbon::parse($iqResult->updated_at)->translatedFormat('F Y'),
+        ];
+    }
+
+    protected function getPerformanceTrends(User $participant): array
+    {
+        if (!Schema::hasTable('assessment_participants')) {
+            return ['labels' => [], 'values' => []];
+        }
+
+        // Get performance over last 6 months
+        $trends = DB::table('assessment_participants as ap')
+            ->where('ap.participant_id', $participant->id)
+            ->where('ap.status', 'completed')
+            ->whereNotNull('ap.score')
+            ->where('ap.updated_at', '>=', now()->subMonths(6))
+            ->select(
+                DB::raw('DATE_FORMAT(ap.updated_at, "%Y-%m") as month'),
+                DB::raw('AVG(ap.score) as avg_score'),
+                DB::raw('COUNT(*) as test_count')
+            )
+            ->groupBy('month')
+            ->orderBy('month')
+            ->get();
+
+        $labels = [];
+        $values = [];
+
+        foreach ($trends as $trend) {
+            $labels[] = \Carbon\Carbon::createFromFormat('Y-m', $trend->month)->translatedFormat('M Y');
+            $score = (float) $trend->avg_score;
+            // Convert old 0-10 scale scores to 0-100 scale
+            if ($score < 20) {
+                $score = $score * 10;
+            }
+            $values[] = round($score, 2);
+        }
+
+        return [
+            'labels' => $labels,
+            'values' => $values,
+        ];
     }
 
     protected function metricCount(string $table, array $where = []): int
@@ -121,7 +391,77 @@ class DashboardController extends Controller
             });
     }
 
-    protected function participantEvaluations(?string $statusFilter = null): Collection
+    /**
+     * List active / published assessments that the given participant
+     * has not yet started. These are shown on the participant dashboard
+     * as \"Available assessments\".
+     */
+    protected function availableAssessmentsForParticipant(User $participant): Collection
+    {
+        if (! Schema::hasTable('assessments')) {
+            return collect();
+        }
+
+        $now = Carbon::now();
+
+        // Resolve current language (if available) to pick the right title
+        $languageId = null;
+        if (Schema::hasTable('languages')) {
+            $languageId = DB::table('languages')
+                ->where('code', app()->getLocale())
+                ->value('id');
+        }
+
+        $query = DB::table('assessments as a')
+            ->leftJoin('assessment_participants as ap', function ($join) use ($participant) {
+                $join->on('ap.assessment_id', '=', 'a.id')
+                    ->where('ap.participant_id', '=', $participant->id);
+            })
+            ->whereNull('ap.id')
+            ->where('a.status', 'active')
+            ->where(function ($q) use ($now) {
+                $q->whereNull('a.start_date')->orWhere('a.start_date', '<=', $now);
+            })
+            ->where(function ($q) use ($now) {
+                $q->whereNull('a.end_date')->orWhere('a.end_date', '>=', $now);
+            })
+            ->orderBy('a.start_date')
+            ->select([
+                'a.id',
+                'a.type',
+                'a.start_date',
+                'a.end_date',
+                'a.status',
+            ])
+            ->limit(10);
+
+        $rows = $query->get();
+
+        // Attach a localized title if translations table is available
+        if (Schema::hasTable('assessment_translations') && $languageId) {
+            $titles = DB::table('assessment_translations')
+                ->whereIn('assessment_id', $rows->pluck('id')->all())
+                ->where('language_id', $languageId)
+                ->pluck('title', 'assessment_id');
+
+            $rows->transform(function ($row) use ($titles) {
+                $row->title = $titles[$row->id] ?? null;
+                $row->start_date = $this->toCarbon($row->start_date);
+                $row->end_date = $this->toCarbon($row->end_date);
+                return $row;
+            });
+        } else {
+            $rows->transform(function ($row) {
+                $row->start_date = $this->toCarbon($row->start_date);
+                $row->end_date = $this->toCarbon($row->end_date);
+                return $row;
+            });
+        }
+
+        return $rows;
+    }
+
+    protected function participantEvaluations(?string $statusFilter = null, ?int $participantId = null): Collection
     {
         if (! Schema::hasTable('assessment_participants')) {
             return collect();
@@ -140,6 +480,10 @@ class DashboardController extends Controller
 
         if ($statusFilter) {
             $query->where('ap.status', $statusFilter);
+        }
+
+        if ($participantId) {
+            $query->where('ap.participant_id', $participantId);
         }
 
         $items = $query->get();

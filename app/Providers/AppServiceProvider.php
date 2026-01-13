@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Models\ParticipantResponse;
+use App\Observers\ParticipantResponseObserver;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -19,6 +21,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // Register observer for automatic score calculation
+        ParticipantResponse::observe(ParticipantResponseObserver::class);
     }
 }

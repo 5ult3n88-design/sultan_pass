@@ -276,6 +276,9 @@ class TestController extends Controller
     // View test submissions for grading
     public function grade(Test $test)
     {
+        // Check role hierarchy: Admin, Manager, and Assessor can grade
+        abort_unless(auth()->user()->hasRoleOrAbove('assessor'), 403);
+
         $assignments = $test->assignments()
             ->with(['participant', 'testResult'])
             ->latest()
@@ -287,7 +290,13 @@ class TestController extends Controller
     // Grade specific assignment
     public function gradeAssignment(Test $test, \App\Models\TestAssignment $assignment)
     {
+        // Check role hierarchy
+        abort_unless(auth()->user()->hasRoleOrAbove('assessor'), 403);
         abort_unless($assignment->test_id === $test->id, 404);
+
+        // Check if user can view this participant
+        $currentUser = auth()->user();
+        abort_unless($currentUser->canView($assignment->participant), 403);
 
         $assignment->load([
             'participant',

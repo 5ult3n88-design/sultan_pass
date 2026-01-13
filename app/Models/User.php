@@ -83,4 +83,65 @@ class User extends Authenticatable
     {
         return $this->full_name ?? $this->username ?? $this->email;
     }
+
+    /**
+     * Role hierarchy mapping: higher number = higher privilege
+     */
+    protected static array $roleHierarchy = [
+        'participant' => 1,
+        'assessor' => 2,
+        'manager' => 3,
+        'admin' => 4,
+    ];
+
+    /**
+     * Check if user has a specific role
+     */
+    public function hasRole(string $role): bool
+    {
+        return $this->role === $role;
+    }
+
+    /**
+     * Check if user has any of the given roles
+     */
+    public function hasAnyRole(array $roles): bool
+    {
+        return in_array($this->role, $roles, true);
+    }
+
+    /**
+     * Check if user has higher or equal privilege than given role
+     */
+    public function hasRoleOrAbove(string $role): bool
+    {
+        $userLevel = self::$roleHierarchy[$this->role] ?? 0;
+        $requiredLevel = self::$roleHierarchy[$role] ?? 0;
+
+        return $userLevel >= $requiredLevel;
+    }
+
+    /**
+     * Check if user can view another user's data (based on hierarchy)
+     */
+    public function canView(User $otherUser): bool
+    {
+        // Admin can view everyone
+        if ($this->hasRole('admin')) {
+            return true;
+        }
+
+        // Manager can view assessors and participants
+        if ($this->hasRole('manager')) {
+            return $otherUser->hasAnyRole(['assessor', 'participant']);
+        }
+
+        // Assessor can view participants only
+        if ($this->hasRole('assessor')) {
+            return $otherUser->hasRole('participant');
+        }
+
+        // Participants can only view themselves
+        return $this->id === $otherUser->id;
+    }
 }

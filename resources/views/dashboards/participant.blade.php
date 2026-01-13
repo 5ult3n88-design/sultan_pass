@@ -5,10 +5,10 @@
 
 @section('content')
     <div class="grid gap-6 lg:grid-cols-2">
-        {{-- Left: My current assessments --}}
+        {{-- Left: My current assessments and tests --}}
         <div class="rounded-2xl border border-white/10 bg-white/5 p-6">
-            <h2 class="text-lg font-semibold text-white">{{ __('My assessments') }}</h2>
-            <p class="mt-1 text-xs text-slate-400">{{ __('Active and recently completed tasks') }}</p>
+            <h2 class="text-lg font-semibold text-white">{{ __('My Assessments') }}</h2>
+            <p class="mt-1 text-xs text-slate-400">{{ __('Active and recently completed assessments & tests') }}</p>
             <ul class="mt-6 space-y-3 text-sm text-slate-200">
                 @forelse($assignments as $assignment)
                     <li class="rounded-xl border border-white/5 bg-slate-900/40 px-4 py-3">
@@ -58,13 +58,14 @@
             </ul>
         </div>
 
-        {{-- Right: Available assessments to start --}}
+        {{-- Right: Available assessments and tests to start --}}
         <div class="rounded-2xl border border-white/10 bg-white/5 p-6">
-            <h2 class="text-lg font-semibold text-white">{{ __('Available assessments') }}</h2>
+            <h2 class="text-lg font-semibold text-white">{{ __('Available Assessments') }}</h2>
             <p class="mt-1 text-xs text-slate-400">
-                {{ __('Assessments that are open for you to start now') }}
+                {{ __('Assessments & tests that are open for you to start now') }}
             </p>
             <ul class="mt-6 space-y-3 text-sm text-slate-200">
+                {{-- Available Regular Assessments --}}
                 @forelse($availableAssessments as $assessment)
                     <li class="rounded-xl border border-white/5 bg-slate-900/40 px-4 py-3">
                         <div class="flex items-center justify-between gap-3">
@@ -92,44 +93,37 @@
                         </div>
                     </li>
                 @empty
-                    <li class="rounded-xl border border-dashed border-white/10 px-4 py-6 text-center text-slate-400">
-                        {{ __('There are no new assessments available for you at the moment.') }}
+                    @if($availableTests->isEmpty())
+                        <li class="rounded-xl border border-dashed border-white/10 px-4 py-6 text-center text-slate-400">
+                            {{ __('There are no new assessments available for you at the moment.') }}
+                        </li>
+                    @endif
+                @endforelse
+
+                {{-- Available Tests (unified under same section) --}}
+                @forelse($availableTests as $test)
+                    <li class="rounded-xl border border-white/5 bg-slate-900/40 px-4 py-3">
+                        <div class="flex items-center justify-between gap-3">
+                            <div>
+                                <p class="font-semibold text-white">{{ $test->title }}</p>
+                                <p class="text-xs text-slate-400 mt-1">
+                                    {{ ucfirst($test->test_type) }} • {{ __('Duration') }}: {{ $test->duration_minutes ?? __('Flexible') }} {{ __('mins') }}
+                                </p>
+                            </div>
+                            <a href="{{ route('tests.take', $test) }}"
+                                class="rounded-lg bg-emerald-500/90 px-3 py-1.5 text-xs font-semibold text-slate-900 hover:bg-emerald-400">
+                                {{ __('Start') }}
+                            </a>
+                        </div>
                     </li>
+                @empty
+                    @if($availableAssessments->isEmpty())
+                        <li class="rounded-xl border border-dashed border-white/10 px-4 py-6 text-center text-slate-400">
+                            {{ __('There are no new assessments available for you at the moment.') }}
+                        </li>
+                    @endif
                 @endforelse
             </ul>
         </div>
-    </div>
-
-    <div class="mt-6 rounded-2xl border border-white/10 bg-white/5 p-6">
-        <div class="flex items-center justify-between">
-            <div>
-                <h2 class="text-lg font-semibold text-white">{{ __('Available Tests') }}</h2>
-                <p class="mt-1 text-xs text-slate-400">{{ __('Published exams you can take now') }}</p>
-            </div>
-            <a href="{{ route('tests.available') }}"
-                class="text-sm font-semibold text-amber-300 hover:text-amber-200">
-                {{ __('View all') }} →
-            </a>
-        </div>
-        <ul class="mt-6 space-y-3 text-sm text-slate-200">
-            @forelse($availableTests as $test)
-                <li class="rounded-xl border border-white/5 bg-slate-900/40 px-4 py-3 flex items-center justify-between">
-                    <div>
-                        <p class="font-semibold">{{ $test->title }}</p>
-                        <p class="text-xs text-slate-400 mt-1">
-                            {{ ucfirst($test->test_type) }} • {{ __('Duration') }}: {{ $test->duration_minutes ?? __('Flexible') }} {{ __('mins') }}
-                        </p>
-                    </div>
-                    <a href="{{ route('tests.take', $test) }}"
-                        class="rounded-lg bg-emerald-500 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-600">
-                        {{ __('Start') }}
-                    </a>
-                </li>
-            @empty
-                <li class="rounded-xl border border-dashed border-white/10 px-4 py-6 text-center text-slate-400">
-                    {{ __('No tests are published yet.') }}
-                </li>
-            @endforelse
-        </ul>
     </div>
 @endsection

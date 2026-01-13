@@ -78,8 +78,9 @@ class DashboardController extends Controller
     {
         $assignedAssessments = $this->assessmentsForRole('assessor');
         $pendingEvaluations = $this->participantEvaluations('in_progress');
+        $testsRequiringGrading = $this->getTestsRequiringGrading();
 
-        return view('dashboards.assessor', compact('assignedAssessments', 'pendingEvaluations'));
+        return view('dashboards.assessor', compact('assignedAssessments', 'pendingEvaluations', 'testsRequiringGrading'));
     }
 
     public function participant(Request $request): View
@@ -699,5 +700,48 @@ class DashboardController extends Controller
             'labels' => $labels,
             'values' => $values,
         ];
+    }
+
+    protected function getTestsRequiringGrading(): Collection
+    {
+        if (!Schema::hasTable('tests') || !Schema::hasTable('test_assignments')) {
+            return collect();
+        }
+
+        // Get test assignments that are submitted and need grading
+        $assignments = DB::table('test_assignments as ta')
+            ->join('tests as t', 't.id', '=', 'ta.test_id')
+            ->join('users as u', 'u.id', '=', 'ta.participant_id')
+            ->leftJoin('test_results as tr', 'tr.test_assignment_id', '=', 'ta.id')
+            ->where('ta.status', 'submitted')
+            ->select([
+                'ta.id as assignment_id',
+                'ta.test_id',
+                't.title as test_title',
+                't.total_marks',
+                'u.id as participant_id',
+                DB::raw('COALESCE(u.name, u.username) as participant_name'),
+                'u.email as participant_email',
+                'tr.total_marks_obtained as current_score',
+            ])
+            ->get();
+
+        // For each assignment, count answered and ungraded questions
+        foreach ($assignments as $assignment) {
+            $responseCounts = DB::table('test_responses')
+                ->where('test_assignment_id', $assignment->assignment_id)
+                ->selectRaw('COUNT(*) as total, SUM(CASE WHEN is_graded = 0 THEN 1 ELSE 0 END) as ungraded')
+                ->first();
+
+            $totalQuestions = DB::table('test_questions')
+                ->where('test_id', $assignment->test_id)
+                ->count();
+
+            $assignment->answered_count = $responseCounts->total ?? 0;
+            $assignment->ungraded_count = $responseCounts->ungraded ?? 0;
+            $assignment->total_questions = $totalQuestions;
+        }
+
+        return collect($assignments);
     }
 }

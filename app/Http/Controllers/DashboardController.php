@@ -81,11 +81,17 @@ class DashboardController extends Controller
         return view('dashboards.assessor', compact('assignedAssessments', 'pendingEvaluations'));
     }
 
-    public function participant(): View
+    public function participant(Request $request): View
     {
-        $assignments = $this->participantEvaluations();
+        $user = $request->user();
 
-        return view('dashboards.participant', compact('assignments'));
+        // Assessments where this user is already a participant
+        $assignments = $this->participantEvaluations(statusFilter: null, participantId: $user->id);
+
+        // Published / active assessments that this user has not yet started
+        $availableAssessments = $this->availableAssessmentsForParticipant($user);
+
+        return view('dashboards.participant', compact('assignments', 'availableAssessments'));
     }
 
     public function examineePerformance(Request $request, ?User $participant = null): View
@@ -150,15 +156,28 @@ class DashboardController extends Controller
             return 0.0;
         }
 
-        $avgScore = DB::table('assessment_participants')
+        $scores = DB::table('assessment_participants')
             ->where('participant_id', $participant->id)
             ->where('status', 'completed')
             ->whereNotNull('score')
-            ->avg('score');
+            ->pluck('score')
+            ->map(function ($score) {
+                // Convert old 0-10 scale scores to 0-100 scale
+                // If score is less than 20, assume it's on old 0-10 scale
+                if ($score < 20) {
+                    return (float) $score * 10;
+                }
+                return (float) $score;
+            });
 
-        // Normalize to 0-100 if scores are on a different scale
-        // Assuming scores are already 0-100, but we'll ensure it
-        return min(100, max(0, (float) ($avgScore ?? 0)));
+        if ($scores->isEmpty()) {
+            return 0.0;
+        }
+
+        $avgScore = $scores->avg();
+
+        // Normalize to 0-100
+        return min(100, max(0, round($avgScore, 2)));
     }
 
     protected function getCategoryScores(User $participant): array
@@ -167,66 +186,92 @@ class DashboardController extends Controller
             return ['labels' => [], 'values' => [], 'colors' => []];
         }
 
-        // Get all participant responses with selected answers
+        // Get all participant responses (MCQ + written) that have either
+        // selected answers or graded category weights.
         $responses = DB::table('participant_responses')
             ->where('participant_id', $participant->id)
-            ->whereNotNull('selected_answer_ids')
+            ->where(function ($q) {
+                $q->whereNotNull('selected_answer_ids')
+                    ->orWhereNotNull('graded_categories');
+            })
             ->get();
 
         if ($responses->isEmpty()) {
             return ['labels' => [], 'values' => [], 'colors' => []];
         }
 
-        // Calculate category scores from answer weights
+        // Calculate category scores from answer weights and graded categories
         $categoryTotals = [];
-        $categoryCounts = [];
+        $categoryMax = [];
         $categoryInfo = [];
 
         foreach ($responses as $response) {
-            $selectedAnswerIds = json_decode($response->selected_answer_ids, true);
-            if (!is_array($selectedAnswerIds) || empty($selectedAnswerIds)) {
-                continue;
+            // 1) MCQ questions: infer categories from selected answers
+            $selectedAnswerIds = json_decode($response->selected_answer_ids ?? '[]', true);
+            if (is_array($selectedAnswerIds) && !empty($selectedAnswerIds)) {
+                $weights = DB::table('answer_category_weights as acw')
+                    ->join('assessment_categories as ac', 'ac.id', '=', 'acw.category_id')
+                    ->whereIn('acw.answer_id', $selectedAnswerIds)
+                    ->select('ac.id', 'ac.name', 'ac.color', 'acw.weight')
+                    ->get();
+
+                foreach ($weights as $weight) {
+                    $catId = $weight->id;
+                    if (!isset($categoryTotals[$catId])) {
+                        $categoryTotals[$catId] = 0;
+                        $categoryMax[$catId] = 0;
+                        $categoryInfo[$catId] = [
+                            'name' => $weight->name,
+                            'color' => $weight->color ?: '#B68A35',
+                        ];
+                    }
+
+                    $categoryTotals[$catId] += (float) $weight->weight;
+                    // Assume max weight of 3.0 per answer by default
+                    $categoryMax[$catId] += 3.0;
+                }
             }
 
-            // Get category weights for selected answers
-            $weights = DB::table('answer_category_weights as acw')
-                ->join('assessment_categories as ac', 'ac.id', '=', 'acw.category_id')
-                ->whereIn('acw.answer_id', $selectedAnswerIds)
-                ->select('ac.id', 'ac.name', 'ac.color', 'acw.weight')
-                ->get();
+            // 2) Written questions graded by assessor: use graded_categories JSON
+            if (!empty($response->graded_categories)) {
+                $gradedCategories = json_decode($response->graded_categories, true);
+                if (is_array($gradedCategories)) {
+                    foreach ($gradedCategories as $catId => $weight) {
+                        if (!isset($categoryTotals[$catId])) {
+                            // Look up category info once
+                            $category = DB::table('assessment_categories')->where('id', $catId)->first();
+                            $categoryInfo[$catId] = [
+                                'name' => $category->name ?? __('Category :id', ['id' => $catId]),
+                                'color' => $category->color ?? '#B68A35',
+                            ];
+                            $categoryTotals[$catId] = 0;
+                            $categoryMax[$catId] = 0;
+                        }
 
-            foreach ($weights as $weight) {
-                $catId = $weight->id;
-                if (!isset($categoryTotals[$catId])) {
-                    $categoryTotals[$catId] = 0;
-                    $categoryCounts[$catId] = 0;
-                    $categoryInfo[$catId] = [
-                        'name' => $weight->name,
-                        'color' => $weight->color ?: '#B68A35',
-                    ];
+                        $categoryTotals[$catId] += (float) $weight;
+                        // Assume max weight of 3.0 per graded category value
+                        $categoryMax[$catId] += 3.0;
+                    }
                 }
-                $categoryTotals[$catId] += (float) $weight->weight;
-                $categoryCounts[$catId]++;
             }
         }
 
-        // Calculate averages and normalize to 0-100 scale
-        // Assuming max weight per question is around 3.0, and we have ~10 questions
-        // So max possible score per category would be around 30 (10 questions * 3.0 max weight)
-        // We'll normalize to 0-100 scale
-        $maxPossibleScore = 30; // Adjust based on your actual max weights
+        if (empty($categoryTotals)) {
+            return ['labels' => [], 'values' => [], 'colors' => []];
+        }
+
+        // Normalize each category total to 0-100 based on its max weight
         $labels = [];
         $values = [];
         $colors = [];
 
         foreach ($categoryTotals as $catId => $total) {
-            $avgScore = $categoryCounts[$catId] > 0 ? ($total / $categoryCounts[$catId]) : 0;
-            // Normalize to 0-100 (assuming max weight is 3.0 per answer)
-            $normalizedScore = min(100, max(0, ($avgScore / 3.0) * 100));
-            
-            $labels[] = $categoryInfo[$catId]['name'];
+            $max = max($categoryMax[$catId] ?? 0, 1);
+            $normalizedScore = min(100, max(0, ($total / $max) * 100));
+
+            $labels[] = $categoryInfo[$catId]['name'] ?? __('Category :id', ['id' => $catId]);
             $values[] = round($normalizedScore, 1);
-            $colors[] = $categoryInfo[$catId]['color'];
+            $colors[] = $categoryInfo[$catId]['color'] ?? '#B68A35';
         }
 
         return [
@@ -298,7 +343,12 @@ class DashboardController extends Controller
 
         foreach ($trends as $trend) {
             $labels[] = \Carbon\Carbon::createFromFormat('Y-m', $trend->month)->translatedFormat('M Y');
-            $values[] = round((float) $trend->avg_score, 2);
+            $score = (float) $trend->avg_score;
+            // Convert old 0-10 scale scores to 0-100 scale
+            if ($score < 20) {
+                $score = $score * 10;
+            }
+            $values[] = round($score, 2);
         }
 
         return [
@@ -341,7 +391,77 @@ class DashboardController extends Controller
             });
     }
 
-    protected function participantEvaluations(?string $statusFilter = null): Collection
+    /**
+     * List active / published assessments that the given participant
+     * has not yet started. These are shown on the participant dashboard
+     * as \"Available assessments\".
+     */
+    protected function availableAssessmentsForParticipant(User $participant): Collection
+    {
+        if (! Schema::hasTable('assessments')) {
+            return collect();
+        }
+
+        $now = Carbon::now();
+
+        // Resolve current language (if available) to pick the right title
+        $languageId = null;
+        if (Schema::hasTable('languages')) {
+            $languageId = DB::table('languages')
+                ->where('code', app()->getLocale())
+                ->value('id');
+        }
+
+        $query = DB::table('assessments as a')
+            ->leftJoin('assessment_participants as ap', function ($join) use ($participant) {
+                $join->on('ap.assessment_id', '=', 'a.id')
+                    ->where('ap.participant_id', '=', $participant->id);
+            })
+            ->whereNull('ap.id')
+            ->where('a.status', 'active')
+            ->where(function ($q) use ($now) {
+                $q->whereNull('a.start_date')->orWhere('a.start_date', '<=', $now);
+            })
+            ->where(function ($q) use ($now) {
+                $q->whereNull('a.end_date')->orWhere('a.end_date', '>=', $now);
+            })
+            ->orderBy('a.start_date')
+            ->select([
+                'a.id',
+                'a.type',
+                'a.start_date',
+                'a.end_date',
+                'a.status',
+            ])
+            ->limit(10);
+
+        $rows = $query->get();
+
+        // Attach a localized title if translations table is available
+        if (Schema::hasTable('assessment_translations') && $languageId) {
+            $titles = DB::table('assessment_translations')
+                ->whereIn('assessment_id', $rows->pluck('id')->all())
+                ->where('language_id', $languageId)
+                ->pluck('title', 'assessment_id');
+
+            $rows->transform(function ($row) use ($titles) {
+                $row->title = $titles[$row->id] ?? null;
+                $row->start_date = $this->toCarbon($row->start_date);
+                $row->end_date = $this->toCarbon($row->end_date);
+                return $row;
+            });
+        } else {
+            $rows->transform(function ($row) {
+                $row->start_date = $this->toCarbon($row->start_date);
+                $row->end_date = $this->toCarbon($row->end_date);
+                return $row;
+            });
+        }
+
+        return $rows;
+    }
+
+    protected function participantEvaluations(?string $statusFilter = null, ?int $participantId = null): Collection
     {
         if (! Schema::hasTable('assessment_participants')) {
             return collect();
@@ -360,6 +480,10 @@ class DashboardController extends Controller
 
         if ($statusFilter) {
             $query->where('ap.status', $statusFilter);
+        }
+
+        if ($participantId) {
+            $query->where('ap.participant_id', $participantId);
         }
 
         $items = $query->get();

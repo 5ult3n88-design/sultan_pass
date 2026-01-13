@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Assessment;
 use App\Models\ParticipantResponse;
 use App\Models\User;
+use App\Services\AssessmentScoreService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -149,6 +150,10 @@ class GradingController extends Controller
                     $response->update($updateData);
                 }
             }
+
+            // Recalculate and update the overall assessment score after grading
+            $scoreService = new AssessmentScoreService();
+            $scoreService->calculateAndUpdateScore($assessment, $participant);
         });
 
         return redirect()

@@ -83,12 +83,62 @@ interface CandidateScoringService {
 - Execute `php artisan test` to validate locale switching and role-restricted dashboards
 - Feature tests cover admin dashboard access and locale switching workflows
 
-**Next Steps**
-- Implement Eloquent models matching the schema
-- Add controllers/routes for assessments, participants, scoring, reports
-- Wire in the AI scoring service and expose recommendations in the UI
-- Add policies/middleware for roles and permissions
-- Build exports (PDF/Excel) and notification triggers
+**End-to-End Workflow (Current Implementation)**
+
+- **Authoring**
+  - Admin/Manager creates assessments via `assessments/create`:
+    - Defines type, scoring mode (categorical/percentile), dates, and status (`draft`, `active`, `closed`).
+    - Adds questions and answers (MCQ + written) and optional categories/weights.
+  - When an assessment is set to `active` and within its date window, it becomes visible to participants.
+
+- **Participant Access**
+  - Participants log in and land on the **Candidate Hub** (`dashboard/participant`):
+    - **My assessments**: assessments where they already have an `assessment_participants` record (invited, in_progress, completed).
+    - **Available assessments**: active assessments they have not yet started.
+  - Start/continue an assessment from the dashboard, which links to `assessments/{assessment}/take`.
+
+- **Test Taking (Single Question Flow)**
+  - `SurveyController@take` loads one question at a time from `assessment_questions`:
+    - Supports MCQ (checkboxes bound to real `assessment_answers`) and written questions.
+    - Progress bar and \"Question X of Y\" indicator.
+    - Question navigator on the right lets examinees jump to any question.
+  - `SurveyController@storeResponse`:
+    - Saves responses into `participant_responses` on **Next**, **Previous**, **Mark for review**, and **Submit**.
+    - Maintains/creates `assessment_participants` row and marks status `in_progress` while taking.
+    - On **Submit**, marks `assessment_participants.status = 'completed'` and returns to the dashboard.
+
+- **Scoring & Grading**
+  - `AssessmentScoreService`:
+    - Aggregates MCQ scores using `answer_scores` / `answer_category_weights`.
+    - Uses graded written responses (`graded_score` / `graded_categories`) from `GradingController`.
+    - Updates `assessment_participants.score` and status.
+  - `ParticipantResponseObserver`:
+    - Listens for `ParticipantResponse` saves and triggers recalculation so scores stay in sync.
+  - Assessors use the grading UI (`assessments/{assessment}/grade`) to grade written items; scores are recomputed automatically.
+
+- **Dashboards & Results**
+  - **Examinee Performance Dashboard** pulls from:
+    - `assessment_participants` for overall scores and trends.
+    - `participant_responses` + `answer_category_weights`/`graded_categories` for strengths & weaknesses by category.
+  - Participant dashboard shows scores and provides links to view or retake as allowed by business rules.
+
+- **AI Integration (Arabic-Aware)**
+  - `AIService` supports multiple providers (Gemini, OpenAI, DeepSeek).
+  - System prompts are locale-aware:
+    - If the UI locale is Arabic (`app()->getLocale() === 'ar'`), AI is instructed to understand Arabic input and may generate Modern Standard Arabic output for reports, recommendations, and qualitative analysis.
+  - DeepSeek-specific helpers (`DeepSeekService`) provide the same capabilities when you configure DeepSeek as the provider.
+
+**Maintenance & Data Migration**
+- You can safely regenerate demo data with:
+  - `php artisan migrate:fresh --seed`
+- To fix legacy 0–10 scale scores or recompute from responses:
+  - `php artisan assessments:recalculate-scores --fix-old-scores`
+  - `php artisan assessments:recalculate-scores`
+
+**Next Steps (Customization)**
+- Adjust scoring weights and normalization logic in `AssessmentScoreService` to match your rubric.
+- Extend the Examinee Performance Dashboard with per-assessment filters or richer competency breakdowns.
+- Add exports (PDF/Excel) and notification triggers as needed for your deployment.
 
 **Notes**
 - This repo focuses on schema and structure. Business logic, UI, and the AI model/service are intentionally left pluggable so you can implement rules‑based scoring first and upgrade to ML later.

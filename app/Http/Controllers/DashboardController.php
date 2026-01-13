@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Language;
+use App\Models\Test;
 use App\Models\User;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Carbon;
@@ -84,8 +85,11 @@ class DashboardController extends Controller
     public function participant(): View
     {
         $assignments = $this->participantEvaluations();
+        $availableTests = Schema::hasTable('tests')
+            ? Test::query()->where('status', 'published')->latest()->limit(5)->get(['id', 'title', 'test_type', 'duration_minutes'])
+            : collect();
 
-        return view('dashboards.participant', compact('assignments'));
+        return view('dashboards.participant', compact('assignments', 'availableTests'));
     }
 
     public function examineePerformance(Request $request, ?User $participant = null): View

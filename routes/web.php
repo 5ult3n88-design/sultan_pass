@@ -12,6 +12,7 @@ use App\Http\Controllers\AssessmentController;
 use App\Http\Controllers\GradingController;
 use App\Http\Controllers\AIDemoController;
 use App\Http\Controllers\AI\AIAssistantController;
+use App\Http\Controllers\TestTakingController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
@@ -125,6 +126,25 @@ Route::middleware('auth')->group(function () {
         Route::get('assessments/{assessment}/grade', [GradingController::class, 'index'])->name('assessments.grade');
         Route::get('assessments/{assessment}/grade/{participant}', [GradingController::class, 'show'])->name('assessments.grade-participant');
         Route::post('assessments/{assessment}/grade/{participant}', [GradingController::class, 'store'])->name('assessments.save-grade');
+    });
+
+    // Participant/assessee test-taking routes
+    Route::middleware('role:participant,manager,admin,assessor')->group(function () {
+        Route::get('my-tests', [TestTakingController::class, 'available'])->name('tests.available');
+        Route::get('my-tests/{test}', [TestTakingController::class, 'take'])->name('tests.take');
+        Route::post('my-tests/{test}', [TestTakingController::class, 'submit'])->name('tests.submit');
+    });
+
+    // Test routes (for assessors, managers, and admins)
+    Route::middleware('role:assessor,manager,admin')->group(function () {
+        Route::get('tests', [\App\Http\Controllers\TestController::class, 'index'])->name('tests.index');
+        Route::get('tests/create', [\App\Http\Controllers\TestController::class, 'create'])->name('tests.create');
+        Route::post('tests/create-type', [\App\Http\Controllers\TestController::class, 'createType'])->name('tests.create-type');
+        Route::post('tests', [\App\Http\Controllers\TestController::class, 'store'])->name('tests.store');
+        Route::get('tests/{test}', [\App\Http\Controllers\TestController::class, 'show'])->name('tests.show');
+        Route::get('tests/{test}/edit', [\App\Http\Controllers\TestController::class, 'edit'])->name('tests.edit');
+        Route::put('tests/{test}', [\App\Http\Controllers\TestController::class, 'update'])->name('tests.update');
+        Route::delete('tests/{test}', [\App\Http\Controllers\TestController::class, 'destroy'])->name('tests.destroy');
     });
 
     // Assessor routes

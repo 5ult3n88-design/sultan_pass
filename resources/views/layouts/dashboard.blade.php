@@ -69,12 +69,14 @@
                             {{ \App\Models\PasswordResetRequest::pending()->count() }}
                         </span>
                     </a>
-                    <a href="{{ route('assessments.create') }}" class="flex items-center justify-between rounded-lg px-4 py-2 transition hover:bg-amber-500/15 {{ request()->routeIs('assessments.create') ? 'bg-amber-500/20 text-amber-300' : '' }}">
-                        <span>{{ __('New assessment') }}</span>
-                        <span class="rounded-full bg-amber-500/20 px-2 py-0.5 text-xs font-semibold text-amber-400">
-                            {{ __('Go') }}
+                    @if(in_array(auth()->user()->role, ['admin', 'manager', 'assessor']))
+                    <a href="{{ route('tests.index') }}" class="flex items-center justify-between rounded-lg px-4 py-2 transition hover:bg-amber-500/15 {{ request()->routeIs('tests.*') ? 'bg-amber-500/20 text-amber-300' : '' }}">
+                        <span>{{ __('Tests') }}</span>
+                        <span class="rounded-full bg-emerald-500/30 px-2 py-0.5 text-xs font-semibold text-emerald-100">
+                            {{ \App\Models\Test::count() }}
                         </span>
                     </a>
+                    @endif
                     @if(auth()->user()->role !== 'participant')
                     <a href="{{ route('ai-assistant.index') }}" class="flex items-center justify-between rounded-lg px-4 py-2 transition hover:bg-amber-500/15 {{ request()->routeIs('ai-assistant.*') ? 'bg-amber-500/20 text-amber-300' : '' }}">
                         <span>{{ __('AI Assistant') }}</span>
@@ -164,4 +166,3 @@
         @stack('scripts')
     </body>
 </html>
-

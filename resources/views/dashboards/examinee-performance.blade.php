@@ -55,9 +55,18 @@
                 </form>
             @endif
 
-            <div class="text-right">
-                <p class="text-sm text-slate-400">{{ __('Overall Score') }}</p>
-                <p class="text-3xl font-bold text-uae-gold-300">{{ number_format($overallScore, 1) }}%</p>
+            <div class="flex items-center gap-4">
+                <div class="text-right">
+                    <p class="text-sm text-slate-400">{{ __('Overall Score') }}</p>
+                    <p class="text-3xl font-bold text-uae-gold-300">{{ number_format($overallScore, 1) }}%</p>
+                </div>
+                {{-- PDF Export Button --}}
+                <button onclick="exportToPDF()" class="flex items-center gap-2 rounded-lg border border-uae-gold-300/30 bg-uae-gold-300/10 px-4 py-2 text-sm font-semibold text-uae-gold-100 hover:bg-uae-gold-300/20 transition print:hidden">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    {{ __('Export PDF') }}
+                </button>
             </div>
         </div>
     </div>
@@ -185,8 +194,16 @@
 </div>
 
 @push('scripts')
+{{-- Load Chart.js from CDN as backup --}}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+// Wait for Chart.js to be available
+function initPerformanceCharts() {
+    if (typeof Chart === 'undefined') {
+        console.error('Chart.js not loaded');
+        setTimeout(initPerformanceCharts, 100);
+        return;
+    }
     const isDark = document.documentElement.dataset.theme === 'dark';
     const textColor = isDark ? '#C6C6C6' : '#414042';
     const gridColor = isDark ? 'rgba(182, 138, 53, 0.1)' : 'rgba(182, 138, 53, 0.1)';
@@ -429,7 +446,67 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-});
+}
+
+// Initialize charts when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initPerformanceCharts);
+} else {
+    initPerformanceCharts();
+}
+
+// PDF Export function
+function exportToPDF() {
+    // Load html2pdf library dynamically
+    if (typeof html2pdf === 'undefined') {
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+        script.onload = generatePDF;
+        document.head.appendChild(script);
+    } else {
+        generatePDF();
+    }
+}
+
+function generatePDF() {
+    const element = document.querySelector('.space-y-6');
+    const participantName = '{{ $participant->full_name ?? $participant->username }}';
+    const date = new Date().toISOString().split('T')[0];
+
+    const opt = {
+        margin: [10, 10, 10, 10],
+        filename: `Performance_Report_${participantName.replace(/\s+/g, '_')}_${date}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: {
+            scale: 2,
+            useCORS: true,
+            logging: false,
+            backgroundColor: '#1a1a2e'
+        },
+        jsPDF: {
+            unit: 'mm',
+            format: 'a4',
+            orientation: 'portrait'
+        },
+        pagebreak: { mode: 'avoid-all' }
+    };
+
+    // Show loading state
+    const btn = document.querySelector('button[onclick="exportToPDF()"]');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> {{ __("Generating...") }}';
+    btn.disabled = true;
+
+    html2pdf().set(opt).from(element).save().then(() => {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }).catch(err => {
+        console.error('PDF generation error:', err);
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        alert('{{ __("Error generating PDF. Please try again.") }}');
+    });
+}
 </script>
 @endpush
 @endsection

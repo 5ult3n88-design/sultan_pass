@@ -32,3 +32,5 @@ storage/logs/
 storage/framework/cache/
 storage/framework/sessions/
 storage/framework/views/
+fix-*.sh
+final-permission-fix.sh

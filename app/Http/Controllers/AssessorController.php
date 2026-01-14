@@ -26,6 +26,9 @@ class AssessorController extends Controller
 
     public function participants(Request $request): View
     {
+        $perPage = $request->get('per_page', 10);
+        $perPage = in_array($perPage, [10, 25, 50, 100], true) ? (int) $perPage : 10;
+
         $participants = User::query()
             ->with('language')
             ->where('role', 'participant')
@@ -33,7 +36,7 @@ class AssessorController extends Controller
             ->when($request->get('department'), fn ($query, $dept) => $query->where('department', $dept))
             ->orderBy('full_name')
             ->orderBy('username')
-            ->paginate(10)
+            ->paginate($perPage)
             ->withQueryString();
 
         $departments = User::where('role', 'participant')
@@ -49,7 +52,6 @@ class AssessorController extends Controller
         ]);
     }
 }
-
 
 
 

@@ -1,4 +1,4 @@
-@extends('layouts.role', [
+@extends('layouts.dashboard', [
     'title' => __('Assessor Command Center'),
     'subtitle' => __('Review assigned assessments and track pending evaluations'),
 ])

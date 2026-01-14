@@ -9,6 +9,15 @@
         @endif
     </head>
     <body class="min-h-screen bg-iron-950 text-silver-100">
+        @php
+            $currentUser = auth()->user();
+            $homeRoute = match ($currentUser?->role) {
+                'admin' => 'dashboard.admin',
+                'manager' => 'dashboard.manager',
+                'assessor' => 'dashboard.assessor',
+                default => 'dashboard.participant',
+            };
+        @endphp
         <header class="border-b border-uae-gold-300/20 bg-iron-900/80 backdrop-blur">
             <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
                 <div>
@@ -19,6 +28,11 @@
                     @endisset
                 </div>
                 <div class="flex items-center gap-3">
+                    @auth
+                        <a href="{{ route($homeRoute) }}" class="rounded-lg border border-uae-gold-300/20 bg-uae-gold-300/10 px-3 py-2 text-xs font-semibold text-uae-gold-100 hover:bg-uae-gold-300/20">
+                            {{ __('Overview') }}
+                        </a>
+                    @endauth
                     <form action="{{ route('locale.switch') }}" method="POST" class="inline-flex">
                         @csrf
                         <input type="hidden" name="redirect" value="{{ url()->current() }}">
@@ -38,37 +52,39 @@
         </header>
         <div class="mx-auto max-w-6xl px-6">
             @auth
-                @if(auth()->user()->role === 'participant')
-                    <nav class="border-b border-white/10 py-4 mb-6">
-                        <div class="flex items-center gap-4 text-sm">
-                            <a href="{{ route('dashboard.participant') }}" class="px-3 py-2 rounded-lg transition {{ request()->routeIs('dashboard.participant') ? 'bg-uae-gold-300/20 text-uae-gold-200' : 'text-slate-300 hover:bg-white/5' }}">
-                                {{ __('My Dashboard') }}
-                            </a>
-                            <a href="{{ route('tests.available') }}" class="px-3 py-2 rounded-lg transition {{ request()->routeIs('tests.*') ? 'bg-uae-gold-300/20 text-uae-gold-200' : 'text-slate-300 hover:bg-white/5' }}">
-                                {{ __('My Tests') }}
-                            </a>
-                            <a href="{{ route('dashboard.examinee-performance') }}" class="px-3 py-2 rounded-lg transition {{ request()->routeIs('dashboard.examinee-performance*') ? 'bg-uae-gold-300/20 text-uae-gold-200' : 'text-slate-300 hover:bg-white/5' }}">
-                                {{ __('My Performance') }}
-                            </a>
-                        </div>
-                    </nav>
-                @elseif(auth()->user()->role === 'assessor' || auth()->user()->role === 'manager')
-                    <nav class="border-b border-white/10 py-4 mb-6">
-                        <div class="flex items-center gap-4 text-sm">
-                            <a href="{{ auth()->user()->role === 'assessor' ? route('dashboard.assessor') : route('dashboard.manager') }}" class="px-3 py-2 rounded-lg transition {{ request()->routeIs('dashboard.*') && !request()->routeIs('dashboard.examinee-performance*') ? 'bg-uae-gold-300/20 text-uae-gold-200' : 'text-slate-300 hover:bg-white/5' }}">
-                                {{ __('Dashboard') }}
-                            </a>
-                            <a href="{{ auth()->user()->role === 'assessor' ? route('assessor.assessments') : route('manager.assessments') }}" class="px-3 py-2 rounded-lg transition {{ request()->routeIs(auth()->user()->role . '.assessments') ? 'bg-uae-gold-300/20 text-uae-gold-200' : 'text-slate-300 hover:bg-white/5' }}">
-                                {{ __('Assessments') }}
-                            </a>
-                            <a href="{{ auth()->user()->role === 'assessor' ? route('assessor.participants') : route('manager.participants') }}" class="px-3 py-2 rounded-lg transition {{ request()->routeIs(auth()->user()->role . '.participants') ? 'bg-uae-gold-300/20 text-uae-gold-200' : 'text-slate-300 hover:bg-white/5' }}">
-                                {{ __('Participants') }}
-                            </a>
-                            <a href="{{ route('dashboard.examinee-performance') }}" class="px-3 py-2 rounded-lg transition {{ request()->routeIs('dashboard.examinee-performance*') ? 'bg-uae-gold-300/20 text-uae-gold-200' : 'text-slate-300 hover:bg-white/5' }}">
-                                {{ __('Performance Dashboard') }}
-                            </a>
-                        </div>
-                    </nav>
+                @if(!request()->routeIs('dashboard.examinee-performance*'))
+                    @if(auth()->user()->role === 'participant')
+                        <nav class="border-b border-white/10 py-4 mb-6">
+                            <div class="flex items-center gap-4 text-sm">
+                                <a href="{{ route('dashboard.participant') }}" class="px-3 py-2 rounded-lg transition {{ request()->routeIs('dashboard.participant') ? 'bg-uae-gold-300/20 text-uae-gold-200' : 'text-slate-300 hover:bg-white/5' }}">
+                                    {{ __('My Dashboard') }}
+                                </a>
+                                <a href="{{ route('tests.available') }}" class="px-3 py-2 rounded-lg transition {{ request()->routeIs('tests.*') ? 'bg-uae-gold-300/20 text-uae-gold-200' : 'text-slate-300 hover:bg-white/5' }}">
+                                    {{ __('My Tests') }}
+                                </a>
+                                <a href="{{ route('dashboard.examinee-performance') }}" class="px-3 py-2 rounded-lg transition {{ request()->routeIs('dashboard.examinee-performance*') ? 'bg-uae-gold-300/20 text-uae-gold-200' : 'text-slate-300 hover:bg-white/5' }}">
+                                    {{ __('My Performance') }}
+                                </a>
+                            </div>
+                        </nav>
+                    @elseif(auth()->user()->role === 'assessor' || auth()->user()->role === 'manager')
+                        <nav class="border-b border-white/10 py-4 mb-6">
+                            <div class="flex items-center gap-4 text-sm">
+                                <a href="{{ auth()->user()->role === 'assessor' ? route('dashboard.assessor') : route('dashboard.manager') }}" class="px-3 py-2 rounded-lg transition {{ request()->routeIs('dashboard.*') && !request()->routeIs('dashboard.examinee-performance*') ? 'bg-uae-gold-300/20 text-uae-gold-200' : 'text-slate-300 hover:bg-white/5' }}">
+                                    {{ __('Dashboard') }}
+                                </a>
+                                <a href="{{ auth()->user()->role === 'assessor' ? route('assessor.assessments') : route('manager.assessments') }}" class="px-3 py-2 rounded-lg transition {{ request()->routeIs(auth()->user()->role . '.assessments') ? 'bg-uae-gold-300/20 text-uae-gold-200' : 'text-slate-300 hover:bg-white/5' }}">
+                                    {{ __('Assessments') }}
+                                </a>
+                                <a href="{{ auth()->user()->role === 'assessor' ? route('assessor.participants') : route('manager.participants') }}" class="px-3 py-2 rounded-lg transition {{ request()->routeIs(auth()->user()->role . '.participants') ? 'bg-uae-gold-300/20 text-uae-gold-200' : 'text-slate-300 hover:bg-white/5' }}">
+                                    {{ __('Participants') }}
+                                </a>
+                                <a href="{{ route('dashboard.examinee-performance') }}" class="px-3 py-2 rounded-lg transition {{ request()->routeIs('dashboard.examinee-performance*') ? 'bg-uae-gold-300/20 text-uae-gold-200' : 'text-slate-300 hover:bg-white/5' }}">
+                                    {{ __('Performance Dashboard') }}
+                                </a>
+                            </div>
+                        </nav>
+                    @endif
                 @endif
             @endauth
         </div>
@@ -93,4 +109,3 @@
         </main>
     </body>
 </html>
-

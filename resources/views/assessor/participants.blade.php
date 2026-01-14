@@ -22,6 +22,20 @@
             </button>
         </form>
     </div>
+    <div class="mb-6">
+        <form method="GET" action="{{ route('assessor.participants') }}" class="inline-flex items-center gap-3">
+            @foreach(request()->except('per_page', 'page') as $key => $value)
+                <input type="hidden" name="{{ $key }}" value="{{ $value }}">
+            @endforeach
+            <label class="text-xs font-semibold text-slate-400">{{ __('Items per page') }}:</label>
+            <select name="per_page" onchange="this.form.submit()" class="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-slate-200 focus:border-uae-gold-300 focus:outline-none focus:ring-2 focus:ring-uae-gold-300/40">
+                <option value="10" @selected(request('per_page', 10) == 10)>10</option>
+                <option value="25" @selected(request('per_page', 10) == 25)>25</option>
+                <option value="50" @selected(request('per_page', 10) == 50)>50</option>
+                <option value="100" @selected(request('per_page', 10) == 100)>100</option>
+            </select>
+        </form>
+    </div>
 
     <div class="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
         <table class="min-w-full divide-y divide-white/10 text-sm">
@@ -64,7 +78,4 @@
         {{ $participants->links() }}
     </div>
 @endsection
-
-
-
 

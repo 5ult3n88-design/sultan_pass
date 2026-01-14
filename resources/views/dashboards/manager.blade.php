@@ -1,4 +1,4 @@
-@extends('layouts.role', [
+@extends('layouts.dashboard', [
     'title' => __('Manager Dashboard'),
     'subtitle' => __('Monitor team readiness and upcoming assessments'),
 ])

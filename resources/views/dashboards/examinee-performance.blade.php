@@ -1,5 +1,5 @@
 @php
-    $layout = auth()->check() && in_array(auth()->user()->role, ['participant', 'assessor', 'manager'], true)
+    $layout = auth()->check() && auth()->user()->role === 'participant'
         ? 'layouts.role'
         : 'layouts.dashboard';
 @endphp

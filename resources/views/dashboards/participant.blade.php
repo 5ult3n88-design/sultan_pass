@@ -1,4 +1,4 @@
-@extends('layouts.role', [
+@extends('layouts.dashboard', [
     'title' => __('Candidate Hub'),
     'subtitle' => __('Complete assessments and review your progress'),
 ])

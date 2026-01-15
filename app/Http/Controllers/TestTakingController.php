@@ -14,17 +14,39 @@ class TestTakingController extends Controller
 {
     public function available()
     {
-        $tests = Test::query()
-            ->where('status', 'published')
+        $assignments = TestAssignment::query()
+            ->with(['test' => function ($query) {
+                $query->where('status', 'published')
+                    ->select('id', 'title', 'test_type', 'duration_minutes');
+            }])
+            ->where('participant_id', auth()->id())
+            ->whereIn('status', ['assigned', 'in_progress'])
             ->latest()
-            ->get(['id', 'title', 'test_type', 'duration_minutes']);
+            ->get()
+            ->filter(fn($assignment) => $assignment->test !== null)
+            ->values();
 
-        return view('tests.available', compact('tests'));
+        return view('tests.available', compact('assignments'));
     }
 
     public function take(Test $test)
     {
         abort_unless($test->isPublished(), 404);
+
+        $assignment = TestAssignment::query()
+            ->where('test_id', $test->id)
+            ->where('participant_id', auth()->id())
+            ->first();
+
+        if (! $assignment) {
+            return redirect()->route('tests.available')
+                ->with('error', __('This test is not assigned to you.'));
+        }
+
+        if ($assignment->isCompleted()) {
+            return redirect()->route('dashboard.participant')
+                ->with('error', __('You have already completed this test.'));
+        }
 
         $languageIds = Language::whereIn('code', ['en', 'ar'])->pluck('id', 'code')->toArray();
         $languageIds = array_merge(['en' => null, 'ar' => null], $languageIds);
@@ -83,17 +105,9 @@ class TestTakingController extends Controller
             }
         }
 
-        $assignment = TestAssignment::firstOrCreate(
-            [
-                'test_id' => $test->id,
-                'participant_id' => auth()->id(),
-            ],
-            [
-                'assigned_by' => auth()->id(),
-                'assigned_at' => now(),
-                'status' => 'in_progress',
-            ]
-        );
+        if ($assignment->status === 'assigned') {
+            $assignment->update(['status' => 'in_progress']);
+        }
 
         return view('tests.take', compact('test', 'questions', 'categories', 'assignment'));
     }
@@ -102,17 +116,20 @@ class TestTakingController extends Controller
     {
         abort_unless($test->isPublished(), 404);
 
-        $assignment = TestAssignment::firstOrCreate(
-            [
-                'test_id' => $test->id,
-                'participant_id' => auth()->id(),
-            ],
-            [
-                'assigned_by' => auth()->id(),
-                'assigned_at' => now(),
-                'status' => 'in_progress',
-            ]
-        );
+        $assignment = TestAssignment::query()
+            ->where('test_id', $test->id)
+            ->where('participant_id', auth()->id())
+            ->first();
+
+        if (! $assignment) {
+            return redirect()->route('tests.available')
+                ->with('error', __('This test is not assigned to you.'));
+        }
+
+        if ($assignment->isCompleted()) {
+            return redirect()->route('dashboard.participant')
+                ->with('error', __('You have already completed this test.'));
+        }
 
         $questions = $test->questions()->with('answerChoices')->orderBy('order')->get();
         $answers = $request->input('answers', []);

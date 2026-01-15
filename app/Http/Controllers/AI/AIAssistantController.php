@@ -5,6 +5,7 @@ namespace App\Http\Controllers\AI;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\Assessment;
+use App\Models\Test;
 use App\Services\LocalAIService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -24,15 +25,19 @@ class AIAssistantController extends Controller
     public function index()
     {
         $participants = User::where('role', 'participant')
-            ->where('status', 'active')
-            ->orderBy('full_name')
-            ->get(['id', 'full_name', 'username', 'department', 'rank']);
+            ->orderByRaw('COALESCE(full_name, username)')
+            ->get(['id', 'full_name', 'username', 'department', 'rank', 'status']);
 
         $assessments = Assessment::with('translations')
             ->orderBy('created_at', 'desc')
             ->get();
 
-        return view('ai-assistant.index', compact('participants', 'assessments'));
+        $tests = Test::query()
+            ->where('status', 'published')
+            ->orderBy('created_at', 'desc')
+            ->get(['id', 'title', 'test_type', 'created_at']);
+
+        return view('ai-assistant.index', compact('participants', 'assessments', 'tests'));
     }
 
     /**
@@ -45,6 +50,7 @@ class AIAssistantController extends Controller
             'participant_ids' => 'required|array|min:1',
             'participant_ids.*' => 'exists:users,id',
             'assessment_id' => 'nullable|exists:assessments,id',
+            'test_id' => 'nullable|exists:tests,id',
             'mission_details' => 'nullable|string',
             'question' => 'nullable|string',
         ]);
@@ -57,13 +63,13 @@ class AIAssistantController extends Controller
             if (count($participantIds) !== 1) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Test-Based Analysis requires exactly one participant',
+                    'message' => __('Test-Based Analysis requires exactly one participant'),
                 ], 422);
             }
-            if (empty($validated['assessment_id'])) {
+            if (empty($validated['assessment_id']) && empty($validated['test_id'])) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Test-Based Analysis requires a specific assessment',
+                    'message' => __('Test-Based Analysis requires a specific assessment or test'),
                 ], 422);
             }
         }
@@ -72,13 +78,13 @@ class AIAssistantController extends Controller
             if (count($participantIds) !== 1) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Mission Fit requires exactly one participant',
+                    'message' => __('Mission Fit requires exactly one participant'),
                 ], 422);
             }
             if (empty($validated['mission_details'])) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Mission Fit requires mission/role details',
+                    'message' => __('Mission Fit requires mission/role details'),
                 ], 422);
             }
         }
@@ -86,7 +92,7 @@ class AIAssistantController extends Controller
         if ($mode === 'overall' && count($participantIds) !== 1) {
             return response()->json([
                 'success' => false,
-                'message' => 'Overall Analysis requires exactly one participant',
+                'message' => __('Overall Analysis requires exactly one participant'),
             ], 422);
         }
 
@@ -94,13 +100,13 @@ class AIAssistantController extends Controller
             if (count($participantIds) < 2) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Comparison requires at least 2 participants',
+                    'message' => __('Comparison requires at least 2 participants'),
                 ], 422);
             }
             if (empty($validated['mission_details'])) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Comparison requires mission/role details',
+                    'message' => __('Comparison requires mission/role details'),
                 ], 422);
             }
         }
@@ -109,6 +115,7 @@ class AIAssistantController extends Controller
             $mode = $validated['mode'];
             $participantIds = $validated['participant_ids'];
             $assessmentId = $validated['assessment_id'] ?? null;
+            $testId = $validated['test_id'] ?? null;
             $missionDetails = $validated['mission_details'] ?? null;
             $question = $validated['question'] ?? null;
 
@@ -122,7 +129,7 @@ class AIAssistantController extends Controller
                 ->get();
 
             // Build context based on mode
-            $context = $this->buildContext($mode, $participants, $assessmentId, $missionDetails);
+            $context = $this->buildContext($mode, $participants, $assessmentId, $testId, $missionDetails);
 
             // Generate AI response
             $prompt = $this->buildPrompt($mode, $context, $question);
@@ -133,12 +140,17 @@ class AIAssistantController extends Controller
                 . "CRITICAL: Use ONLY plain text. Never use markdown symbols like **, ###, ####, or other formatting characters. ";
 
             if ($locale === 'ar') {
-                $systemInstruction .= "The user interface language is Arabic. You MUST write your entire answer in Modern Standard Arabic only. "
-                    . "Do NOT use any Chinese characters or Chinese words at all. "
-                    . "If the input contains English or Chinese, understand it internally but rephrase everything in Arabic.";
+                $systemInstruction .= "\n\nLANGUAGE REQUIREMENT - THIS IS MANDATORY:\n"
+                    . "You MUST write your ENTIRE response in Arabic (العربية) ONLY.\n"
+                    . "- Use Modern Standard Arabic (الفصحى) throughout.\n"
+                    . "- ABSOLUTELY NO Chinese characters (中文), Japanese, Korean, or any non-Arabic script.\n"
+                    . "- ABSOLUTELY NO mixing of languages.\n"
+                    . "- Even if the input data contains English names or terms, translate or transliterate them into Arabic.\n"
+                    . "- Your response must be 100% in Arabic letters and Arabic numerals only.\n"
+                    . "- This is a strict requirement with no exceptions.";
             } else {
-                $systemInstruction .= "Respond in the interface language '{$locale}' when possible and avoid using Chinese characters "
-                    . "unless the user explicitly asks for a Chinese translation.";
+                $systemInstruction .= "\n\nLANGUAGE REQUIREMENT: Respond entirely in English. "
+                    . "Do not use Chinese, Japanese, Korean, or Arabic characters unless specifically requested.";
             }
 
             $response = $this->localAI->chat([
@@ -171,11 +183,12 @@ class AIAssistantController extends Controller
     /**
      * Build context based on mode
      */
-    protected function buildContext(string $mode, $participants, $assessmentId, $missionDetails): array
+    protected function buildContext(string $mode, $participants, $assessmentId, $testId, $missionDetails): array
     {
         $context = [
             'participants' => [],
             'assessments' => [],
+            'tests' => [],
             'mission' => $missionDetails,
         ];
 
@@ -186,6 +199,7 @@ class AIAssistantController extends Controller
                 'department' => $participant->department,
                 'rank' => $participant->rank,
                 'assessments' => [],
+                'tests' => [],
             ];
 
             // Add assessment data if available
@@ -197,6 +211,39 @@ class AIAssistantController extends Controller
                     'date' => $assessment->created_at->format('Y-m-d'),
                     // In production: Add actual scores, responses, competencies here
                 ];
+            }
+
+            if (\Illuminate\Support\Facades\Schema::hasTable('test_assignments') && \Illuminate\Support\Facades\Schema::hasTable('test_results') && \Illuminate\Support\Facades\Schema::hasTable('tests')) {
+                $testsQuery = \Illuminate\Support\Facades\DB::table('test_assignments as ta')
+                    ->join('tests as t', 't.id', '=', 'ta.test_id')
+                    ->leftJoin('test_results as tr', 'tr.test_assignment_id', '=', 'ta.id')
+                    ->where('ta.participant_id', $participant->id);
+
+                if ($testId) {
+                    $testsQuery->where('t.id', $testId);
+                }
+
+                $testRows = $testsQuery
+                    ->select(
+                        't.id',
+                        't.title',
+                        't.test_type',
+                        'tr.percentage',
+                        'tr.completed_at'
+                    )
+                    ->orderByDesc('tr.completed_at')
+                    ->limit(5)
+                    ->get();
+
+                foreach ($testRows as $testRow) {
+                    $participantData['tests'][] = [
+                        'id' => $testRow->id,
+                        'title' => $testRow->title,
+                        'type' => $testRow->test_type,
+                        'percentage' => $testRow->percentage,
+                        'date' => $testRow->completed_at ? \Illuminate\Support\Carbon::parse($testRow->completed_at)->format('Y-m-d') : null,
+                    ];
+                }
             }
 
             $context['participants'][] = $participantData;
@@ -221,7 +268,14 @@ class AIAssistantController extends Controller
                     . ($context['participants'][0]['rank'] ?? 'N/A')
                     . " (" . ($context['participants'][0]['department'] ?? 'N/A') . ")\n";
 
-                if (!empty($context['participants'][0]['assessments'])) {
+                if (!empty($context['participants'][0]['tests'])) {
+                    $prompt .= "Related tests:\n";
+                    foreach ($context['participants'][0]['tests'] as $test) {
+                        $score = $test['percentage'] !== null ? $test['percentage'] . '%' : 'N/A';
+                        $date = $test['date'] ?? 'N/A';
+                        $prompt .= "- " . $test['title'] . " (" . $test['type'] . "), " . $score . " on " . $date . "\n";
+                    }
+                } elseif (!empty($context['participants'][0]['assessments'])) {
                     $prompt .= "Related assessments:\n";
                     foreach ($context['participants'][0]['assessments'] as $assessment) {
                         $prompt .= "- " . ucfirst($assessment['type']) . " on " . $assessment['date'] . "\n";
@@ -297,8 +351,10 @@ class AIAssistantController extends Controller
         }
 
         if ($isArabic) {
-            $prompt .= "\n\nمهم: استخدم لغة عربية فصحى بسيطة وواضحة، وتحدّث بأسلوب إنساني موجّه للمستخدم، "
-                . "وليس تقريراً رقمياً جامداً.";
+            $prompt .= "\n\n=== تعليمات اللغة (إلزامية) ===\n"
+                . "اكتب ردك بالكامل باللغة العربية الفصحى فقط.\n"
+                . "ممنوع منعاً باتاً استخدام أي حروف صينية أو يابانية أو أي لغة أخرى غير العربية.\n"
+                . "استخدم أسلوباً إنسانياً واضحاً وبسيطاً.";
         }
 
         return $prompt;

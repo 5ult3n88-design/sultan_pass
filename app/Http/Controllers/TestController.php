@@ -7,6 +7,8 @@ use App\Models\TestQuestion;
 use App\Models\TestAnswerChoice;
 use App\Models\TestCategory;
 use App\Models\Language;
+use App\Models\TestAssignment;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -227,14 +229,84 @@ class TestController extends Controller
     public function show(Test $test)
     {
         $test->load('creator', 'questions.answerChoices', 'categories');
+        $participants = collect();
+        $assignedParticipants = collect();
 
-        return view('tests.show', compact('test'));
+        if (auth()->user()->hasRoleOrAbove('assessor')) {
+            $participants = User::query()
+                ->where('role', 'participant')
+                ->orderByRaw('COALESCE(full_name, username)')
+                ->get(['id', 'full_name', 'username', 'email', 'department', 'status']);
+
+            $assignedParticipants = $test->assignments()
+                ->with('participant')
+                ->latest()
+                ->get();
+        }
+
+        return view('tests.show', compact('test', 'participants', 'assignedParticipants'));
     }
 
     // Edit test
     public function edit(Test $test)
     {
         $test->load('questions.answerChoices', 'categories');
+
+        $languageIds = Language::whereIn('code', ['en', 'ar'])->pluck('id', 'code');
+        $translations = DB::table('test_translations')
+            ->where('test_id', $test->id)
+            ->whereIn('language_id', $languageIds->values())
+            ->get()
+            ->keyBy('language_id');
+
+        $test->title_en = optional($translations[$languageIds['en']] ?? null)->title ?? $test->title;
+        $test->title_ar = optional($translations[$languageIds['ar']] ?? null)->title ?? $test->title;
+        $test->description_en = optional($translations[$languageIds['en']] ?? null)->description ?? $test->description;
+        $test->description_ar = optional($translations[$languageIds['ar']] ?? null)->description ?? $test->description;
+
+        $categoryTranslations = DB::table('test_category_translations')
+            ->whereIn('test_category_id', $test->categories->pluck('id'))
+            ->whereIn('language_id', $languageIds->values())
+            ->get()
+            ->groupBy('test_category_id');
+
+        foreach ($test->categories as $category) {
+            $translations = $categoryTranslations[$category->id] ?? collect();
+            $category->name_en = optional($translations->firstWhere('language_id', $languageIds['en']))->name ?? $category->name;
+            $category->name_ar = optional($translations->firstWhere('language_id', $languageIds['ar']))->name ?? $category->name;
+            $category->description_en = optional($translations->firstWhere('language_id', $languageIds['en']))->description ?? $category->description;
+            $category->description_ar = optional($translations->firstWhere('language_id', $languageIds['ar']))->description ?? $category->description;
+        }
+
+        $questionTranslations = DB::table('test_question_translations')
+            ->whereIn('test_question_id', $test->questions->pluck('id'))
+            ->whereIn('language_id', $languageIds->values())
+            ->get()
+            ->groupBy('test_question_id');
+
+        $choiceIds = $test->questions->flatMap(function ($question) {
+            return $question->answerChoices->pluck('id');
+        });
+
+        $choiceTranslations = $choiceIds->isNotEmpty()
+            ? DB::table('test_answer_choice_translations')
+                ->whereIn('test_answer_choice_id', $choiceIds)
+                ->whereIn('language_id', $languageIds->values())
+                ->get()
+                ->groupBy('test_answer_choice_id')
+            : collect();
+
+        foreach ($test->questions as $question) {
+            $translations = $questionTranslations[$question->id] ?? collect();
+            $question->text_en = optional($translations->firstWhere('language_id', $languageIds['en']))->question_text ?? $question->question_text;
+            $question->text_ar = optional($translations->firstWhere('language_id', $languageIds['ar']))->question_text ?? $question->question_text;
+
+            foreach ($question->answerChoices as $choice) {
+                $translations = $choiceTranslations[$choice->id] ?? collect();
+                $choice->text_en = optional($translations->firstWhere('language_id', $languageIds['en']))->choice_text ?? $choice->choice_text;
+                $choice->text_ar = optional($translations->firstWhere('language_id', $languageIds['ar']))->choice_text ?? $choice->choice_text;
+            }
+        }
 
         return view('tests.edit', compact('test'));
     }
@@ -243,22 +315,177 @@ class TestController extends Controller
     public function update(Request $request, Test $test)
     {
         $request->validate([
-            'title' => 'required|string|max:255',
-            'description' => 'nullable|string',
+            'title_en' => 'required|string|max:255',
+            'title_ar' => 'required|string|max:255',
+            'description_en' => 'nullable|string',
+            'description_ar' => 'nullable|string',
+            'test_type' => 'required|in:percentile,categorical',
             'total_marks' => 'nullable|integer|min:1',
             'passing_marks' => 'nullable|integer|min:0',
             'duration_minutes' => 'nullable|integer|min:1',
             'status' => 'required|in:draft,published,archived',
+
+            'categories' => 'required_if:test_type,categorical|array',
+            'categories.*.name_en' => 'required_with:categories|string|max:255',
+            'categories.*.name_ar' => 'required_with:categories|string|max:255',
+            'categories.*.description_en' => 'nullable|string',
+            'categories.*.description_ar' => 'nullable|string',
+            'categories.*.color' => 'nullable|string|max:7',
+
+            'questions' => 'required|array|min:1',
+            'questions.*.text_en' => 'required|string',
+            'questions.*.text_ar' => 'required|string',
+            'questions.*.question_type' => 'required|in:multiple_choice,typed',
+            'questions.*.marks' => 'nullable|integer|min:1',
+            'questions.*.choices' => 'required_if:questions.*.question_type,multiple_choice|array|min:2',
+            'questions.*.choices.*.text_en' => 'required_with:questions.*.choices|string',
+            'questions.*.choices.*.text_ar' => 'required_with:questions.*.choices|string',
+            'questions.*.choices.*.is_correct' => 'nullable|boolean',
+            'questions.*.choices.*.category_id' => 'nullable|integer',
         ]);
 
-        $test->update($request->only([
-            'title',
-            'description',
-            'total_marks',
-            'passing_marks',
-            'duration_minutes',
-            'status',
-        ]));
+        if (TestAssignment::where('test_id', $test->id)->exists()) {
+            return back()->withInput()->with('error', __('This test already has assignments. Create a new test to change questions or answers.'));
+        }
+
+        $languages = Language::whereIn('code', ['en', 'ar'])->pluck('id', 'code');
+        if ($languages->count() < 2) {
+            return back()->withInput()->with('error', __('English and Arabic languages must be configured first.'));
+        }
+
+        DB::beginTransaction();
+        try {
+            $test->update([
+                'title' => $request->title_en,
+                'description' => $request->description_en,
+                'test_type' => $request->test_type,
+                'total_marks' => $request->total_marks,
+                'passing_marks' => $request->passing_marks,
+                'duration_minutes' => $request->duration_minutes,
+                'status' => $request->status,
+            ]);
+
+            DB::table('test_translations')->where('test_id', $test->id)->delete();
+
+            DB::table('test_translations')->insert([
+                [
+                    'test_id' => $test->id,
+                    'language_id' => $languages['en'],
+                    'title' => $request->title_en,
+                    'description' => $request->description_en,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ],
+                [
+                    'test_id' => $test->id,
+                    'language_id' => $languages['ar'],
+                    'title' => $request->title_ar,
+                    'description' => $request->description_ar,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ],
+            ]);
+
+            TestCategory::where('test_id', $test->id)->delete();
+            TestQuestion::where('test_id', $test->id)->delete();
+
+            $categoryIdMap = [];
+            if ($request->test_type === 'categorical' && $request->categories) {
+                foreach ($request->categories as $index => $categoryData) {
+                    $category = TestCategory::create([
+                        'test_id' => $test->id,
+                        'name' => $categoryData['name_en'],
+                        'description' => $categoryData['description_en'] ?? null,
+                        'color' => $categoryData['color'] ?? $this->generateRandomColor(),
+                        'order' => $index,
+                    ]);
+                    $categoryIdMap[$index] = $category->id;
+
+                    DB::table('test_category_translations')->insert([
+                        [
+                            'test_category_id' => $category->id,
+                            'language_id' => $languages['en'],
+                            'name' => $categoryData['name_en'],
+                            'description' => $categoryData['description_en'] ?? null,
+                            'created_at' => now(),
+                            'updated_at' => now(),
+                        ],
+                        [
+                            'test_category_id' => $category->id,
+                            'language_id' => $languages['ar'],
+                            'name' => $categoryData['name_ar'],
+                            'description' => $categoryData['description_ar'] ?? null,
+                            'created_at' => now(),
+                            'updated_at' => now(),
+                        ],
+                    ]);
+                }
+            }
+
+            foreach ($request->questions as $questionIndex => $questionData) {
+                $question = TestQuestion::create([
+                    'test_id' => $test->id,
+                    'question_text' => $questionData['text_en'],
+                    'question_type' => $questionData['question_type'],
+                    'marks' => $questionData['marks'] ?? 1,
+                    'order' => $questionIndex,
+                    'is_required' => true,
+                ]);
+
+                DB::table('test_question_translations')->insert([
+                    [
+                        'test_question_id' => $question->id,
+                        'language_id' => $languages['en'],
+                        'question_text' => $questionData['text_en'],
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ],
+                    [
+                        'test_question_id' => $question->id,
+                        'language_id' => $languages['ar'],
+                        'question_text' => $questionData['text_ar'],
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ],
+                ]);
+
+                if ($questionData['question_type'] === 'multiple_choice' && isset($questionData['choices'])) {
+                    foreach ($questionData['choices'] as $choiceIndex => $choiceData) {
+                        $choice = TestAnswerChoice::create([
+                            'test_question_id' => $question->id,
+                            'choice_text' => $choiceData['text_en'],
+                            'is_correct' => $request->test_type === 'percentile' ? ($choiceData['is_correct'] ?? false) : false,
+                            'category_id' => $request->test_type === 'categorical' && isset($choiceData['category_id'])
+                                ? $categoryIdMap[$choiceData['category_id']] ?? null
+                                : null,
+                            'order' => $choiceIndex,
+                        ]);
+
+                        DB::table('test_answer_choice_translations')->insert([
+                            [
+                                'test_answer_choice_id' => $choice->id,
+                                'language_id' => $languages['en'],
+                                'choice_text' => $choiceData['text_en'],
+                                'created_at' => now(),
+                                'updated_at' => now(),
+                            ],
+                            [
+                                'test_answer_choice_id' => $choice->id,
+                                'language_id' => $languages['ar'],
+                                'choice_text' => $choiceData['text_ar'],
+                                'created_at' => now(),
+                                'updated_at' => now(),
+                            ],
+                        ]);
+                    }
+                }
+            }
+
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->withInput()->with('error', __('Failed to update test: ') . $e->getMessage());
+        }
 
         return redirect()->route('tests.show', $test)
             ->with('success', __('Test updated successfully!'));
@@ -271,6 +498,60 @@ class TestController extends Controller
 
         return redirect()->route('tests.index')
             ->with('success', __('Test deleted successfully!'));
+    }
+
+    public function assignParticipants(Request $request, Test $test)
+    {
+        abort_unless(auth()->user()->hasRoleOrAbove('assessor'), 403);
+
+        $data = $request->validate([
+            'participant_ids' => 'required|array',
+            'participant_ids.*' => 'integer|exists:users,id',
+        ]);
+
+        $participants = User::query()
+            ->where('role', 'participant')
+            ->whereIn('id', $data['participant_ids'])
+            ->get(['id']);
+
+        $assignedCount = 0;
+        $skippedCount = 0;
+
+        foreach ($participants as $participant) {
+            $assignment = TestAssignment::query()
+                ->where('test_id', $test->id)
+                ->where('participant_id', $participant->id)
+                ->first();
+
+            if ($assignment) {
+                if ($assignment->isCompleted()) {
+                    $skippedCount++;
+                    continue;
+                }
+
+                $assignment->update([
+                    'status' => 'assigned',
+                    'assigned_by' => auth()->id(),
+                    'assigned_at' => now(),
+                ]);
+                $assignedCount++;
+                continue;
+            }
+
+            TestAssignment::create([
+                'test_id' => $test->id,
+                'participant_id' => $participant->id,
+                'assigned_by' => auth()->id(),
+                'assigned_at' => now(),
+                'status' => 'assigned',
+            ]);
+            $assignedCount++;
+        }
+
+        return back()->with('success', __('Assigned :count participants. Skipped :skipped completed.', [
+            'count' => $assignedCount,
+            'skipped' => $skippedCount,
+        ]));
     }
 
     // View test submissions for grading
@@ -391,6 +672,31 @@ class TestController extends Controller
             DB::rollBack();
             return back()->with('error', __('Failed to save grades: ') . $e->getMessage());
         }
+    }
+
+    public function retake(Test $test, \App\Models\TestAssignment $assignment)
+    {
+        abort_unless(auth()->user()->hasRoleOrAbove('assessor'), 403);
+        abort_unless($assignment->test_id === $test->id, 404);
+
+        DB::beginTransaction();
+        try {
+            $assignment->responses()->delete();
+            $assignment->testResult()->delete();
+
+            $assignment->update([
+                'status' => 'assigned',
+                'assigned_by' => auth()->id(),
+                'assigned_at' => now(),
+            ]);
+
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return back()->with('error', __('Failed to reset attempt: ') . $e->getMessage());
+        }
+
+        return back()->with('success', __('Retake enabled for this participant.'));
     }
 
     // Helper to generate random colors for categories

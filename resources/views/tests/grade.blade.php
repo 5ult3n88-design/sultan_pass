@@ -93,10 +93,20 @@
                         @endif
                         <td class="px-5 py-4 text-right">
                             @if($assignment->isCompleted())
-                                <a href="{{ route('tests.grade-assignment', [$test, $assignment]) }}"
-                                    class="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-300 hover:bg-amber-500/20">
-                                    {{ $assignment->needsGrading() ? __('Grade') : __('View') }}
-                                </a>
+                                <div class="flex items-center justify-end gap-2">
+                                    <a href="{{ route('tests.grade-assignment', [$test, $assignment]) }}"
+                                        class="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-300 hover:bg-amber-500/20">
+                                        {{ $assignment->needsGrading() ? __('Grade') : __('View') }}
+                                    </a>
+                                    <form action="{{ route('tests.retake', [$test, $assignment]) }}" method="POST"
+                                        onsubmit="return confirm('{{ __('Allow this participant to retake the test? This will clear previous answers and results.') }}')">
+                                        @csrf
+                                        <button type="submit"
+                                            class="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/20">
+                                            {{ __('Allow Retake') }}
+                                        </button>
+                                    </form>
+                                </div>
                             @else
                                 <span class="text-xs text-slate-400">{{ __('Not submitted') }}</span>
                             @endif

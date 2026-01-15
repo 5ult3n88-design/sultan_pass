@@ -126,22 +126,19 @@ class User extends Authenticatable
      */
     public function canView(User $otherUser): bool
     {
-        // Admin can view everyone
-        if ($this->hasRole('admin')) {
+        if ($this->id === $otherUser->id) {
             return true;
         }
 
-        // Manager can view assessors and participants
-        if ($this->hasRole('manager')) {
-            return $otherUser->hasAnyRole(['assessor', 'participant']);
-        }
-
-        // Assessor can view participants only
-        if ($this->hasRole('assessor')) {
-            return $otherUser->hasRole('participant');
-        }
-
         // Participants can only view themselves
-        return $this->id === $otherUser->id;
+        if ($this->hasRole('participant')) {
+            return false;
+        }
+
+        $userLevel = self::$roleHierarchy[$this->role] ?? 0;
+        $otherLevel = self::$roleHierarchy[$otherUser->role] ?? 0;
+
+        // Higher or equal roles can view lower or equal roles
+        return $userLevel >= $otherLevel;
     }
 }

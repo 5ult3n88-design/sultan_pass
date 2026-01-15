@@ -9,9 +9,9 @@
             <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-400">{{ __('Create assessments') }}</h2>
             <p class="text-xs text-slate-500">{{ __('Design new tests tailored to your team’s development goals.') }}</p>
         </div>
-        <a href="{{ route('assessments.create') }}" class="inline-flex items-center gap-2 rounded-lg bg-uae-gold-300/90 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-uae-gold-300">
-            <span class="text-base">+</span>
-            {{ __('Create assessment') }}
+        <a href="{{ route('manager.users.index') }}"
+            class="inline-flex items-center gap-2 rounded-lg bg-uae-gold-300/90 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-uae-gold-300">
+            {{ __('Manage users') }}
         </a>
     </div>
 
@@ -21,10 +21,15 @@
             <p class="mt-1 text-xs text-slate-400">{{ __('Participants reporting to you') }}</p>
             <ul class="mt-6 space-y-3 text-sm text-slate-200">
                 @forelse($teamMembers as $member)
+                    @if(empty($member->full_name) && empty($member->username))
+                        @continue
+                    @endif
                     <li class="flex items-center justify-between rounded-xl border border-white/5 bg-slate-900/40 px-4 py-3">
                         <div>
-                            <p class="font-semibold">{{ $member->full_name ?? __('Unassigned name') }}</p>
-                            <p class="text-xs text-slate-400">{{ $member->department ?? __('No department') }}</p>
+                            <p class="font-semibold">{{ $member->full_name ?? $member->username ?? '' }}</p>
+                            @if($member->department)
+                                <p class="text-xs text-slate-400">{{ $member->department }}</p>
+                            @endif
                         </div>
                         <span class="rounded-full px-2.5 py-0.5 text-xs font-semibold {{ $member->status === 'active' ? 'bg-emerald-500/20 text-emerald-200' : 'bg-rose-500/20 text-rose-200' }}">
                             {{ ucfirst($member->status) }}

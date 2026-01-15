@@ -104,6 +104,10 @@ Route::middleware('auth')->group(function () {
         ->middleware('role:manager,admin,assessor')
         ->name('dashboard.examinee-performance.user');
 
+    Route::post('dashboard/examinee-performance/pdf', [DashboardController::class, 'examineePerformancePdf'])
+        ->middleware('role:participant,manager,admin,assessor')
+        ->name('dashboard.examinee-performance.pdf');
+
     Route::get('assessments/{assessment}/take', [SurveyController::class, 'take'])
         ->middleware('role:participant,manager,admin')
         ->name('assessments.take');
@@ -147,8 +151,10 @@ Route::middleware('auth')->group(function () {
 
         // Test grading/correction routes
         Route::get('tests/{test}/grade', [\App\Http\Controllers\TestController::class, 'grade'])->name('tests.grade');
+        Route::post('tests/{test}/assign', [\App\Http\Controllers\TestController::class, 'assignParticipants'])->name('tests.assign');
         Route::get('tests/{test}/grade/{assignment}', [\App\Http\Controllers\TestController::class, 'gradeAssignment'])->name('tests.grade-assignment');
         Route::post('tests/{test}/grade/{assignment}', [\App\Http\Controllers\TestController::class, 'saveGrade'])->name('tests.save-grade');
+        Route::post('tests/{test}/retake/{assignment}', [\App\Http\Controllers\TestController::class, 'retake'])->name('tests.retake');
 
         Route::get('tests/{test}/edit', [\App\Http\Controllers\TestController::class, 'edit'])->name('tests.edit');
         Route::put('tests/{test}', [\App\Http\Controllers\TestController::class, 'update'])->name('tests.update');
@@ -171,6 +177,9 @@ Route::middleware('auth')->group(function () {
     Route::prefix('manager')->name('manager.')->middleware('role:manager,admin')->group(function () {
         Route::get('assessments', [ManagerController::class, 'assessments'])->name('assessments');
         Route::get('participants', [ManagerController::class, 'participants'])->name('participants');
+        Route::get('users', [\App\Http\Controllers\ManagerUserController::class, 'index'])->name('users.index');
+        Route::get('users/{user}/edit', [\App\Http\Controllers\ManagerUserController::class, 'edit'])->name('users.edit');
+        Route::put('users/{user}', [\App\Http\Controllers\ManagerUserController::class, 'update'])->name('users.update');
     });
 
     Route::prefix('admin')->name('admin.')->middleware('role:admin')->group(function () {

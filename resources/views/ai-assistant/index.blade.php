@@ -369,7 +369,10 @@
                         <!-- Participant Items -->
                         <div id="participant-items">
                             @foreach($participants as $participant)
-                                <div class="dropdown-item" data-name="{{ strtolower($participant->full_name) }}" data-department="{{ strtolower($participant->department ?? '') }}">
+                                @php
+                                    $participantName = $participant->full_name ?? $participant->username;
+                                @endphp
+                                <div class="dropdown-item" data-name="{{ strtolower($participantName) }}" data-department="{{ strtolower($participant->department ?? '') }}">
                                     <input
                                         type="checkbox"
                                         id="participant-{{ $participant->id }}"
@@ -377,7 +380,7 @@
                                         class="participant-checkbox"
                                     >
                                     <label for="participant-{{ $participant->id }}">
-                                        {{ $participant->full_name }}
+                                        {{ $participantName }}
                                         <span class="text-silver-400">({{ $participant->department ?? 'N/A' }})</span>
                                     </label>
                                 </div>
@@ -400,11 +403,20 @@
                     class="w-full bg-iron-800 border border-uae-gold-300/20 rounded-lg px-3 py-2 text-silver-200 text-sm focus:outline-none focus:ring-2 focus:ring-uae-gold-300/50"
                 >
                     <option value="">{{ __('All Assessments') }}</option>
-                    @foreach($assessments as $assessment)
-                        <option value="{{ $assessment->id }}">
-                            {{ $assessment->translations->first()->title ?? $assessment->type }} - {{ $assessment->created_at->format('Y-m-d') }}
-                        </option>
-                    @endforeach
+                    <optgroup label="{{ __('Assessments') }}">
+                        @foreach($assessments as $assessment)
+                            <option value="assessment:{{ $assessment->id }}">
+                                {{ $assessment->translations->first()->title ?? $assessment->type }} - {{ $assessment->created_at->format('Y-m-d') }}
+                            </option>
+                        @endforeach
+                    </optgroup>
+                    <optgroup label="{{ __('Tests') }}">
+                        @foreach($tests as $test)
+                            <option value="test:{{ $test->id }}">
+                                {{ $test->title }} ({{ ucfirst($test->test_type) }}) - {{ $test->created_at->format('Y-m-d') }}
+                            </option>
+                        @endforeach
+                    </optgroup>
                 </select>
                 <p id="assessment-hint" class="mt-1 text-xs text-silver-400">{{ __('Optional for broader analysis') }}</p>
             </div>
@@ -553,7 +565,9 @@
         const mode = document.querySelector('input[name="mode"]:checked').value;
         const checkedBoxes = document.querySelectorAll('.participant-checkbox:checked');
         const participantIds = Array.from(checkedBoxes).map(cb => cb.value);
-        const assessmentId = document.getElementById('assessment-select').value;
+        const assessmentValue = document.getElementById('assessment-select').value;
+        const assessmentId = assessmentValue.startsWith('assessment:') ? assessmentValue.replace('assessment:', '') : '';
+        const testId = assessmentValue.startsWith('test:') ? assessmentValue.replace('test:', '') : '';
         const missionDetails = document.getElementById('mission-details').value;
         const question = document.getElementById('user-question').value;
         const sendBtn = document.getElementById('send-btn');
@@ -571,8 +585,8 @@
                 alert('{{ __("Test-Based Analysis: Please select only ONE participant") }}');
                 return;
             }
-            if (!assessmentId) {
-                alert('{{ __("Test-Based Analysis: Please select a specific assessment") }}');
+            if (!assessmentId && !testId) {
+                alert('{{ __("Test-Based Analysis: Please select a specific assessment or test") }}');
                 return;
             }
         }
@@ -665,6 +679,7 @@
                     mode,
                     participant_ids: participantIds,
                     assessment_id: assessmentId || null,
+                    test_id: testId || null,
                     mission_details: missionDetails,
                     question: question || null
                 })

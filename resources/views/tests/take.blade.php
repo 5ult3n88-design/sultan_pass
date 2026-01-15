@@ -185,72 +185,320 @@
         </div>
     </form>
 
-    <div id="calculator-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 p-4">
-        <div class="w-full max-w-sm rounded-2xl border border-amber-500/30 bg-iron-900 p-4 shadow-2xl">
-            <div class="flex items-center justify-between">
-                <h3 class="text-lg font-semibold text-white">{{ __('Calculator') }}</h3>
-                <button type="button" id="close-calculator" class="text-slate-300 hover:text-white">✕</button>
+    {{-- Windows-style Calculator Modal --}}
+    <div id="calculator-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 p-4" style="display: none;">
+        <div id="calculator-container" class="w-80 rounded-xl bg-[#202020] shadow-2xl overflow-hidden select-none" style="font-family: 'Segoe UI', system-ui, sans-serif;">
+            {{-- Title Bar --}}
+            <div id="calc-titlebar" class="flex items-center justify-between px-3 py-2 bg-[#1f1f1f] cursor-move">
+                <div class="flex items-center gap-2">
+                    <svg class="w-4 h-4 text-white/70" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V4a2 2 0 00-2-2H6zm1 2h6v2H7V4zm0 4h6v2H7V8zm0 4h2v2H7v-2z"/>
+                    </svg>
+                    <span class="text-xs font-medium text-white/90">{{ __('Calculator') }}</span>
+                </div>
+                <div class="flex items-center gap-1">
+                    <button type="button" id="calc-minimize" class="w-8 h-6 flex items-center justify-center text-white/70 hover:bg-white/10 rounded">
+                        <svg class="w-3 h-0.5" fill="currentColor"><rect width="12" height="2"/></svg>
+                    </button>
+                    <button type="button" id="close-calculator" class="w-8 h-6 flex items-center justify-center text-white/70 hover:bg-red-500 hover:text-white rounded">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
             </div>
-            <input id="calc-display" type="text" class="mt-3 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-right text-2xl text-white" readonly>
-            <div class="mt-3 grid grid-cols-4 gap-2 text-lg font-semibold text-white">
-                @foreach(['7','8','9','/',
-                          '4','5','6','*',
-                          '1','2','3','-',
-                          '0','.','=','+'] as $key)
-                    <button type="button" data-calc-key="{{ $key }}"
-                        class="rounded-lg bg-white/10 px-3 py-3 hover:bg-amber-500/30">{{ $key }}</button>
-                @endforeach
-                <button type="button" data-calc-action="clear" class="col-span-2 rounded-lg bg-rose-500/30 px-3 py-3 hover:bg-rose-500/40">
-                    {{ __('Clear') }}
-                </button>
-                <button type="button" data-calc-action="backspace" class="col-span-2 rounded-lg bg-slate-500/30 px-3 py-3 hover:bg-slate-500/40">
-                    {{ __('Back') }}
-                </button>
+
+            {{-- Display Area --}}
+            <div class="px-3 py-2 bg-[#202020]">
+                <div id="calc-history" class="text-right text-xs text-white/40 h-4 overflow-hidden"></div>
+                <input id="calc-display" type="text" value="0"
+                    class="w-full bg-transparent text-right text-4xl font-light text-white outline-none" readonly>
+            </div>
+
+            {{-- Memory Buttons --}}
+            <div class="grid grid-cols-6 gap-0.5 px-1 py-1 bg-[#202020]">
+                <button type="button" data-calc-memory="MC" class="py-1 text-xs text-white/50 hover:bg-white/10 rounded">MC</button>
+                <button type="button" data-calc-memory="MR" class="py-1 text-xs text-white/50 hover:bg-white/10 rounded">MR</button>
+                <button type="button" data-calc-memory="M+" class="py-1 text-xs text-white/50 hover:bg-white/10 rounded">M+</button>
+                <button type="button" data-calc-memory="M-" class="py-1 text-xs text-white/50 hover:bg-white/10 rounded">M-</button>
+                <button type="button" data-calc-memory="MS" class="py-1 text-xs text-white/50 hover:bg-white/10 rounded">MS</button>
+                <button type="button" data-calc-memory="M▾" class="py-1 text-xs text-white/50 hover:bg-white/10 rounded">M▾</button>
+            </div>
+
+            {{-- Calculator Buttons --}}
+            <div class="grid grid-cols-4 gap-0.5 p-1 bg-[#202020]">
+                {{-- Row 1 --}}
+                <button type="button" data-calc-func="percent" class="calc-btn calc-btn-func">%</button>
+                <button type="button" data-calc-action="clear-entry" class="calc-btn calc-btn-func">CE</button>
+                <button type="button" data-calc-action="clear" class="calc-btn calc-btn-func">C</button>
+                <button type="button" data-calc-action="backspace" class="calc-btn calc-btn-func">⌫</button>
+
+                {{-- Row 2 --}}
+                <button type="button" data-calc-func="reciprocal" class="calc-btn calc-btn-func">1/x</button>
+                <button type="button" data-calc-func="square" class="calc-btn calc-btn-func">x²</button>
+                <button type="button" data-calc-func="sqrt" class="calc-btn calc-btn-func">√x</button>
+                <button type="button" data-calc-key="/" class="calc-btn calc-btn-op">÷</button>
+
+                {{-- Row 3 --}}
+                <button type="button" data-calc-key="7" class="calc-btn calc-btn-num">7</button>
+                <button type="button" data-calc-key="8" class="calc-btn calc-btn-num">8</button>
+                <button type="button" data-calc-key="9" class="calc-btn calc-btn-num">9</button>
+                <button type="button" data-calc-key="*" class="calc-btn calc-btn-op">×</button>
+
+                {{-- Row 4 --}}
+                <button type="button" data-calc-key="4" class="calc-btn calc-btn-num">4</button>
+                <button type="button" data-calc-key="5" class="calc-btn calc-btn-num">5</button>
+                <button type="button" data-calc-key="6" class="calc-btn calc-btn-num">6</button>
+                <button type="button" data-calc-key="-" class="calc-btn calc-btn-op">−</button>
+
+                {{-- Row 5 --}}
+                <button type="button" data-calc-key="1" class="calc-btn calc-btn-num">1</button>
+                <button type="button" data-calc-key="2" class="calc-btn calc-btn-num">2</button>
+                <button type="button" data-calc-key="3" class="calc-btn calc-btn-num">3</button>
+                <button type="button" data-calc-key="+" class="calc-btn calc-btn-op">+</button>
+
+                {{-- Row 6 --}}
+                <button type="button" data-calc-func="negate" class="calc-btn calc-btn-num">±</button>
+                <button type="button" data-calc-key="0" class="calc-btn calc-btn-num">0</button>
+                <button type="button" data-calc-key="." class="calc-btn calc-btn-num">.</button>
+                <button type="button" data-calc-key="=" class="calc-btn calc-btn-equals">=</button>
             </div>
         </div>
     </div>
 
+    <style>
+        .calc-btn {
+            @apply py-3 text-lg font-normal rounded transition-colors;
+        }
+        .calc-btn-num {
+            @apply bg-[#3b3b3b] text-white hover:bg-[#4a4a4a] active:bg-[#5a5a5a];
+        }
+        .calc-btn-op {
+            @apply bg-[#323232] text-white hover:bg-[#4a4a4a] active:bg-[#5a5a5a];
+        }
+        .calc-btn-func {
+            @apply bg-[#323232] text-white hover:bg-[#4a4a4a] active:bg-[#5a5a5a] text-base;
+        }
+        .calc-btn-equals {
+            @apply bg-[#4cc2ff] text-[#202020] hover:bg-[#5acfff] active:bg-[#3ab8f5] font-medium;
+        }
+    </style>
+
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // Calculator functionality
+            // Enhanced Calculator functionality (Windows-style)
             const modal = document.getElementById('calculator-modal');
+            const calcContainer = document.getElementById('calculator-container');
             const openBtn = document.getElementById('open-calculator');
             const closeBtn = document.getElementById('close-calculator');
+            const minimizeBtn = document.getElementById('calc-minimize');
             const display = document.getElementById('calc-display');
+            const history = document.getElementById('calc-history');
+            const titlebar = document.getElementById('calc-titlebar');
 
-            const showModal = () => modal.classList.remove('hidden');
-            const hideModal = () => modal.classList.add('hidden');
+            let currentValue = '0';
+            let previousValue = '';
+            let operation = null;
+            let shouldResetDisplay = false;
+            let memory = 0;
+
+            function updateDisplay() {
+                display.value = currentValue;
+            }
+
+            function showModal() {
+                modal.style.display = 'flex';
+                modal.classList.remove('hidden');
+            }
+
+            function hideModal() {
+                modal.style.display = 'none';
+                modal.classList.add('hidden');
+            }
+
+            // Draggable calculator
+            let isDragging = false;
+            let dragOffset = { x: 0, y: 0 };
+
+            titlebar?.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                const rect = calcContainer.getBoundingClientRect();
+                dragOffset.x = e.clientX - rect.left;
+                dragOffset.y = e.clientY - rect.top;
+                calcContainer.style.position = 'fixed';
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                calcContainer.style.left = (e.clientX - dragOffset.x) + 'px';
+                calcContainer.style.top = (e.clientY - dragOffset.y) + 'px';
+                calcContainer.style.transform = 'none';
+            });
+
+            document.addEventListener('mouseup', () => {
+                isDragging = false;
+            });
 
             openBtn?.addEventListener('click', showModal);
             closeBtn?.addEventListener('click', hideModal);
+            minimizeBtn?.addEventListener('click', hideModal);
             modal?.addEventListener('click', (e) => {
                 if (e.target === modal) hideModal();
             });
 
+            // Number and operator keys
             document.querySelectorAll('[data-calc-key]').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const key = btn.getAttribute('data-calc-key');
+
                     if (key === '=') {
-                        try {
-                            display.value = display.value ? Function(`"use strict"; return (${display.value})`)() : '';
-                        } catch (err) {
-                            display.value = '{{ __('Error') }}';
+                        if (operation && previousValue !== '') {
+                            try {
+                                const prev = parseFloat(previousValue);
+                                const curr = parseFloat(currentValue);
+                                let result;
+
+                                switch(operation) {
+                                    case '+': result = prev + curr; break;
+                                    case '-': result = prev - curr; break;
+                                    case '*': result = prev * curr; break;
+                                    case '/': result = curr !== 0 ? prev / curr : 'Error'; break;
+                                }
+
+                                history.textContent = `${previousValue} ${operation} ${currentValue} =`;
+                                currentValue = result.toString();
+                                previousValue = '';
+                                operation = null;
+                                shouldResetDisplay = true;
+                            } catch (err) {
+                                currentValue = 'Error';
+                            }
                         }
+                        updateDisplay();
                         return;
                     }
-                    display.value += key;
+
+                    if (['+', '-', '*', '/'].includes(key)) {
+                        if (previousValue !== '' && operation) {
+                            // Chain operations
+                            const prev = parseFloat(previousValue);
+                            const curr = parseFloat(currentValue);
+                            let result;
+                            switch(operation) {
+                                case '+': result = prev + curr; break;
+                                case '-': result = prev - curr; break;
+                                case '*': result = prev * curr; break;
+                                case '/': result = curr !== 0 ? prev / curr : 0; break;
+                            }
+                            currentValue = result.toString();
+                        }
+                        previousValue = currentValue;
+                        operation = key;
+                        shouldResetDisplay = true;
+                        history.textContent = `${previousValue} ${key}`;
+                        updateDisplay();
+                        return;
+                    }
+
+                    // Number input
+                    if (shouldResetDisplay || currentValue === '0') {
+                        currentValue = key === '.' ? '0.' : key;
+                        shouldResetDisplay = false;
+                    } else {
+                        if (key === '.' && currentValue.includes('.')) return;
+                        currentValue += key;
+                    }
+                    updateDisplay();
                 });
             });
 
+            // Action buttons (clear, backspace)
             document.querySelectorAll('[data-calc-action]').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const action = btn.getAttribute('data-calc-action');
                     if (action === 'clear') {
-                        display.value = '';
+                        currentValue = '0';
+                        previousValue = '';
+                        operation = null;
+                        history.textContent = '';
+                    } else if (action === 'clear-entry') {
+                        currentValue = '0';
                     } else if (action === 'backspace') {
-                        display.value = display.value.slice(0, -1);
+                        currentValue = currentValue.length > 1 ? currentValue.slice(0, -1) : '0';
                     }
+                    updateDisplay();
                 });
+            });
+
+            // Function buttons (sqrt, square, etc.)
+            document.querySelectorAll('[data-calc-func]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const func = btn.getAttribute('data-calc-func');
+                    const num = parseFloat(currentValue);
+                    let result;
+
+                    switch(func) {
+                        case 'sqrt':
+                            result = Math.sqrt(num);
+                            history.textContent = `√(${currentValue})`;
+                            break;
+                        case 'square':
+                            result = num * num;
+                            history.textContent = `sqr(${currentValue})`;
+                            break;
+                        case 'reciprocal':
+                            result = num !== 0 ? 1 / num : 'Error';
+                            history.textContent = `1/(${currentValue})`;
+                            break;
+                        case 'percent':
+                            result = previousValue ? (parseFloat(previousValue) * num / 100) : (num / 100);
+                            break;
+                        case 'negate':
+                            result = num * -1;
+                            break;
+                    }
+
+                    currentValue = result.toString();
+                    shouldResetDisplay = true;
+                    updateDisplay();
+                });
+            });
+
+            // Memory buttons
+            document.querySelectorAll('[data-calc-memory]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const action = btn.getAttribute('data-calc-memory');
+                    const num = parseFloat(currentValue);
+
+                    switch(action) {
+                        case 'MC': memory = 0; break;
+                        case 'MR': currentValue = memory.toString(); break;
+                        case 'M+': memory += num; break;
+                        case 'M-': memory -= num; break;
+                        case 'MS': memory = num; break;
+                    }
+                    updateDisplay();
+                });
+            });
+
+            // Keyboard support
+            document.addEventListener('keydown', (e) => {
+                if (modal.style.display !== 'flex') return;
+
+                const key = e.key;
+                if (/[0-9.]/.test(key)) {
+                    document.querySelector(`[data-calc-key="${key}"]`)?.click();
+                } else if (['+', '-', '*', '/'].includes(key)) {
+                    document.querySelector(`[data-calc-key="${key}"]`)?.click();
+                } else if (key === 'Enter' || key === '=') {
+                    document.querySelector('[data-calc-key="="]')?.click();
+                } else if (key === 'Escape') {
+                    hideModal();
+                } else if (key === 'Backspace') {
+                    document.querySelector('[data-calc-action="backspace"]')?.click();
+                } else if (key === 'c' || key === 'C') {
+                    document.querySelector('[data-calc-action="clear"]')?.click();
+                }
             });
 
             // Question navigation and progress tracking
@@ -275,6 +523,7 @@
                 // Update button states
                 prevBtn.disabled = currentQuestion === 0;
                 nextBtn.disabled = currentQuestion === totalQuestions - 1;
+                nextBtn.classList.toggle('hidden', currentQuestion === totalQuestions - 1);
 
                 // Update progress
                 updateProgress();

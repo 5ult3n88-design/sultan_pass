@@ -9,6 +9,7 @@ use App\Models\ParticipantResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class SurveyController extends Controller

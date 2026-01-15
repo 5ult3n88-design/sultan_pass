@@ -6,11 +6,14 @@
 @section('content')
     <div class="rounded-2xl border border-white/10 bg-white/5 p-6">
         <div class="flex items-center justify-between">
-            <h2 class="text-lg font-semibold text-white">{{ __('Published Tests') }}</h2>
-            <span class="text-sm text-slate-300">{{ $tests->count() }} {{ __('available') }}</span>
+            <h2 class="text-lg font-semibold text-white">{{ __('Assigned Tests') }}</h2>
+            <span class="text-sm text-slate-300">{{ $assignments->count() }} {{ __('available') }}</span>
         </div>
         <div class="mt-6 grid gap-4 md:grid-cols-2">
-            @forelse($tests as $test)
+            @forelse($assignments as $assignment)
+                @php
+                    $test = $assignment->test;
+                @endphp
                 <div class="rounded-xl border border-white/5 bg-slate-900/40 p-4 flex flex-col justify-between">
                     <div class="space-y-2">
                         <div class="flex items-center justify-between">
@@ -35,7 +38,7 @@
                     </div>
                 </div>
             @empty
-                <p class="text-sm text-slate-300">{{ __('No published tests are available yet.') }}</p>
+                <p class="text-sm text-slate-300">{{ __('No assigned tests are available yet.') }}</p>
             @endforelse
         </div>
     </div>

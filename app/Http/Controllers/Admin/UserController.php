@@ -375,7 +375,7 @@ class UserController extends Controller
         }
     }
 
-    public function exportCsv(Request $request): Response
+    public function exportCsv(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
     {
         $this->ensureAdmin();
 
@@ -434,7 +434,7 @@ class UserController extends Controller
         return response()->stream($callback, 200, $headers);
     }
 
-    public function downloadImportedPasswords(): Response
+    public function downloadImportedPasswords(): \Symfony\Component\HttpFoundation\StreamedResponse
     {
         $this->ensureAdmin();
 

@@ -32,6 +32,12 @@
                         {{ __('Select examinee') }}
                     </label>
                     <div class="flex items-center gap-2">
+                        <input
+                            type="text"
+                            id="participant-search"
+                            placeholder="{{ __('Search participants...') }}"
+                            class="w-full rounded-lg border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 focus:border-uae-gold-300 focus:outline-none focus:ring-2 focus:ring-uae-gold-300/40"
+                        >
                         <select
                             id="participant_id"
                             name="participant_id"
@@ -67,6 +73,136 @@
                     </svg>
                     {{ __('Export PDF') }}
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="pdf-report" class="space-y-6">
+        <div class="hidden js-pdf-only rounded-2xl border border-white/10 bg-white/5 p-6 shadow-lg">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-xl font-semibold text-white">{{ $participant->full_name ?? $participant->username }}</h2>
+                    <p class="mt-1 text-sm text-slate-400">{{ $participant->email }}</p>
+                    @if($participant->department)
+                        <p class="mt-1 text-xs text-slate-500">{{ __('Department') }}: {{ $participant->department }}</p>
+                    @endif
+                </div>
+                <div class="text-right">
+                    <p class="text-sm text-slate-400">{{ __('Overall Score') }}</p>
+                    <p class="text-3xl font-bold text-uae-gold-300">{{ number_format($overallScore, 1) }}%</p>
+                </div>
+            </div>
+        </div>
+
+    {{-- Key Statistics Cards --}}
+    @php
+        $totalTests = $testAttempts->count();
+        $completedTests = $testAttempts->where('status', 'completed')->count();
+        $passedTests = $testAttempts->filter(function($attempt) {
+            return $attempt->status === 'completed' && $attempt->score_percentage >= ($attempt->test->passing_marks / $attempt->test->total_marks * 100);
+        })->count();
+        $passRate = $completedTests > 0 ? ($passedTests / $completedTests) * 100 : 0;
+        $avgScore = $testAttempts->where('status', 'completed')->avg('score_percentage') ?? 0;
+        $bestScore = $testAttempts->where('status', 'completed')->max('score_percentage') ?? 0;
+        $recentAttempt = $testAttempts->sortByDesc('completed_at')->first();
+        $totalTimeSpent = $testAttempts->where('status', 'completed')->sum(function($attempt) {
+            return $attempt->started_at && $attempt->completed_at
+                ? \Carbon\Carbon::parse($attempt->started_at)->diffInMinutes(\Carbon\Carbon::parse($attempt->completed_at))
+                : 0;
+        });
+        $totalTimeSpentDisplay = $totalTimeSpent > 0
+            ? round($totalTimeSpent, max(2 - (int) floor(log10(abs($totalTimeSpent))) - 1, 0))
+            : 0;
+    @endphp
+    <div class="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-6">
+        {{-- Total Tests --}}
+        <div class="rounded-xl border border-white/10 bg-gradient-to-br from-blue-500/20 to-blue-600/10 p-4 shadow-lg">
+            <div class="flex items-center gap-3">
+                <div class="rounded-lg bg-blue-500/20 p-2">
+                    <svg class="h-6 w-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-xs font-medium uppercase tracking-wide text-slate-400">{{ __('Total Tests') }}</p>
+                    <p class="text-2xl font-bold text-white">{{ $totalTests }}</p>
+                </div>
+            </div>
+        </div>
+
+        {{-- Completed --}}
+        <div class="rounded-xl border border-white/10 bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 p-4 shadow-lg">
+            <div class="flex items-center gap-3">
+                <div class="rounded-lg bg-emerald-500/20 p-2">
+                    <svg class="h-6 w-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-xs font-medium uppercase tracking-wide text-slate-400">{{ __('Completed') }}</p>
+                    <p class="text-2xl font-bold text-white">{{ $completedTests }}</p>
+                </div>
+            </div>
+        </div>
+
+        {{-- Pass Rate --}}
+        <div class="rounded-xl border border-white/10 bg-gradient-to-br from-uae-gold-400/20 to-uae-gold-500/10 p-4 shadow-lg">
+            <div class="flex items-center gap-3">
+                <div class="rounded-lg bg-uae-gold-400/20 p-2">
+                    <svg class="h-6 w-6 text-uae-gold-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-xs font-medium uppercase tracking-wide text-slate-400">{{ __('Pass Rate') }}</p>
+                    <p class="text-2xl font-bold text-white">{{ number_format($passRate, 0) }}%</p>
+                </div>
+            </div>
+        </div>
+
+        {{-- Average Score --}}
+        <div class="rounded-xl border border-white/10 bg-gradient-to-br from-purple-500/20 to-purple-600/10 p-4 shadow-lg">
+            <div class="flex items-center gap-3">
+                <div class="rounded-lg bg-purple-500/20 p-2">
+                    <svg class="h-6 w-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-xs font-medium uppercase tracking-wide text-slate-400">{{ __('Avg Score') }}</p>
+                    <p class="text-2xl font-bold text-white">{{ number_format($avgScore, 1) }}%</p>
+                </div>
+            </div>
+        </div>
+
+        {{-- Best Score --}}
+        <div class="rounded-xl border border-white/10 bg-gradient-to-br from-amber-500/20 to-amber-600/10 p-4 shadow-lg">
+            <div class="flex items-center gap-3">
+                <div class="rounded-lg bg-amber-500/20 p-2">
+                    <svg class="h-6 w-6 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-xs font-medium uppercase tracking-wide text-slate-400">{{ __('Best Score') }}</p>
+                    <p class="text-2xl font-bold text-white">{{ number_format($bestScore, 1) }}%</p>
+                </div>
+            </div>
+        </div>
+
+        {{-- Time Spent --}}
+        <div class="rounded-xl border border-white/10 bg-gradient-to-br from-rose-500/20 to-rose-600/10 p-4 shadow-lg">
+            <div class="flex items-center gap-3">
+                <div class="rounded-lg bg-rose-500/20 p-2">
+                    <svg class="h-6 w-6 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-xs font-medium uppercase tracking-wide text-slate-400">{{ __('Time Spent') }}</p>
+                    <p class="text-2xl font-bold text-white">{{ $totalTimeSpentDisplay }}{{ __('m') }}</p>
+                </div>
             </div>
         </div>
     </div>
@@ -191,12 +327,118 @@
             </div>
         </div>
     </div>
+
+    {{-- Recent Test Results Table --}}
+    <div class="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-lg">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-white">{{ __('Recent Test Results') }}</h3>
+            <span class="text-xs text-slate-400">{{ __('Last :count tests', ['count' => min(5, $testAttempts->count())]) }}</span>
+        </div>
+        @if($testAttempts->isNotEmpty())
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="border-b border-white/10">
+                            <th class="pb-3 text-left font-medium text-slate-400">{{ __('Test Name') }}</th>
+                            <th class="pb-3 text-center font-medium text-slate-400">{{ __('Type') }}</th>
+                            <th class="pb-3 text-center font-medium text-slate-400">{{ __('Score') }}</th>
+                            <th class="pb-3 text-center font-medium text-slate-400">{{ __('Result') }}</th>
+                            <th class="pb-3 text-right font-medium text-slate-400">{{ __('Date') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-white/5">
+                        @foreach($testAttempts->sortByDesc('completed_at')->take(5) as $attempt)
+                            @php
+                                $passingPercentage = $attempt->test->total_marks > 0
+                                    ? ($attempt->test->passing_marks / $attempt->test->total_marks) * 100
+                                    : 60;
+                                $isPassed = $attempt->status === 'completed' && $attempt->score_percentage >= $passingPercentage;
+                                $scoreColor = $attempt->score_percentage >= 80 ? 'text-emerald-400' : ($attempt->score_percentage >= 60 ? 'text-amber-400' : 'text-red-400');
+                            @endphp
+                            <tr class="hover:bg-white/5 transition">
+                                <td class="py-3 text-white font-medium">
+                                    {{ $attempt->test->title }}
+                                </td>
+                                <td class="py-3 text-center">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $attempt->test->test_type === 'percentile' ? 'bg-purple-500/20 text-purple-300' : 'bg-blue-500/20 text-blue-300' }}">
+                                        {{ ucfirst($attempt->test->test_type) }}
+                                    </span>
+                                </td>
+                                <td class="py-3 text-center {{ $scoreColor }} font-bold">
+                                    @if($attempt->status === 'completed')
+                                        {{ number_format($attempt->score_percentage, 1) }}%
+                                    @else
+                                        <span class="text-slate-500">{{ __('In Progress') }}</span>
+                                    @endif
+                                </td>
+                                <td class="py-3 text-center">
+                                    @if($attempt->status === 'completed')
+                                        @if($isPassed)
+                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-300">
+                                                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                                                </svg>
+                                                {{ __('Passed') }}
+                                            </span>
+                                        @else
+                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/20 text-red-300">
+                                                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+                                                </svg>
+                                                {{ __('Failed') }}
+                                            </span>
+                                        @endif
+                                    @else
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-500/20 text-slate-300">
+                                            {{ __('Pending') }}
+                                        </span>
+                                    @endif
+                                </td>
+                                <td class="py-3 text-right text-slate-400 text-xs">
+                                    @if($attempt->completed_at)
+                                        {{ \Carbon\Carbon::parse($attempt->completed_at)->format('M d, Y H:i') }}
+                                    @elseif($attempt->started_at)
+                                        {{ \Carbon\Carbon::parse($attempt->started_at)->format('M d, Y H:i') }}
+                                    @else
+                                        -
+                                    @endif
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        @else
+            <div class="py-8 text-center">
+                <svg class="mx-auto h-12 w-12 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                <p class="mt-2 text-sm text-slate-400">{{ __('No test results available yet.') }}</p>
+            </div>
+        @endif
+    </div>
+</div>
 </div>
 
 @push('scripts')
 {{-- Load Chart.js from CDN as backup --}}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
+function attachSelectSearch(inputId, selectId) {
+    const input = document.getElementById(inputId);
+    const select = document.getElementById(selectId);
+    if (!input || !select) return;
+
+    input.addEventListener('input', () => {
+        const term = input.value.toLowerCase();
+        Array.from(select.options).forEach((opt, idx) => {
+            if (idx === 0) return;
+            const label = (opt.textContent || '').toLowerCase();
+            opt.hidden = term && !label.includes(term);
+        });
+    });
+}
+
 // Wait for Chart.js to be available
 function initPerformanceCharts() {
     if (typeof Chart === 'undefined') {
@@ -451,61 +693,57 @@ function initPerformanceCharts() {
 // Initialize charts when DOM is ready
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initPerformanceCharts);
+    document.addEventListener('DOMContentLoaded', () => attachSelectSearch('participant-search', 'participant_id'));
 } else {
     initPerformanceCharts();
+    attachSelectSearch('participant-search', 'participant_id');
 }
 
-// PDF Export function
+// PDF Export function (server-side PDF with chart images)
 function exportToPDF() {
-    // Load html2pdf library dynamically
-    if (typeof html2pdf === 'undefined') {
-        const script = document.createElement('script');
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
-        script.onload = generatePDF;
-        document.head.appendChild(script);
-    } else {
-        generatePDF();
-    }
-}
-
-function generatePDF() {
-    const element = document.querySelector('.space-y-6');
-    const participantName = '{{ $participant->full_name ?? $participant->username }}';
-    const date = new Date().toISOString().split('T')[0];
-
-    const opt = {
-        margin: [10, 10, 10, 10],
-        filename: `Performance_Report_${participantName.replace(/\s+/g, '_')}_${date}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: {
-            scale: 2,
-            useCORS: true,
-            logging: false,
-            backgroundColor: '#1a1a2e'
-        },
-        jsPDF: {
-            unit: 'mm',
-            format: 'a4',
-            orientation: 'portrait'
-        },
-        pagebreak: { mode: 'avoid-all' }
-    };
-
-    // Show loading state
     const btn = document.querySelector('button[onclick="exportToPDF()"]');
     const originalText = btn.innerHTML;
     btn.innerHTML = '<svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> {{ __("Generating...") }}';
     btn.disabled = true;
 
-    html2pdf().set(opt).from(element).save().then(() => {
+    const getChartDataUrl = (id) => {
+        const canvas = document.getElementById(id);
+        if (!canvas) return '';
+        try {
+            return canvas.toDataURL('image/png');
+        } catch (err) {
+            console.warn('Chart export failed:', id, err);
+            return '';
+        }
+    };
+
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '{{ route('dashboard.examinee-performance.pdf') }}';
+    form.target = '_blank';
+
+    const addInput = (name, value) => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = name;
+        input.value = value || '';
+        form.appendChild(input);
+    };
+
+    addInput('_token', '{{ csrf_token() }}');
+    addInput('participant_id', '{{ $participant->id }}');
+    addInput('chart_overall', getChartDataUrl('overallGaugeChart'));
+    addInput('chart_category', getChartDataUrl('categoryBarChart'));
+    addInput('chart_trend', getChartDataUrl('performanceTrendChart'));
+
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
+
+    setTimeout(() => {
         btn.innerHTML = originalText;
         btn.disabled = false;
-    }).catch(err => {
-        console.error('PDF generation error:', err);
-        btn.innerHTML = originalText;
-        btn.disabled = false;
-        alert('{{ __("Error generating PDF. Please try again.") }}');
-    });
+    }, 800);
 }
 </script>
 @endpush

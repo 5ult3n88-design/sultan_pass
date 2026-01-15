@@ -11,6 +11,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Http\Request;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class DashboardController extends Controller
 {
@@ -64,7 +65,7 @@ class DashboardController extends Controller
     public function manager(): View
     {
         $teamMembers = User::query()
-            ->where('role', 'participant')
+            ->where('role', 'manager')
             ->orderBy('full_name')
             ->limit(8)
             ->get(['id', 'full_name', 'department', 'status']);
@@ -93,9 +94,19 @@ class DashboardController extends Controller
         // Published / active assessments that this user has not yet started
         $availableAssessments = $this->availableAssessmentsForParticipant($user);
 
-        // Published tests available for participants
-        $availableTests = Schema::hasTable('tests')
-            ? Test::query()->where('status', 'published')->latest()->limit(5)->get(['id', 'title', 'test_type', 'duration_minutes'])
+        // Assigned tests available for this participant (not completed)
+        $availableTests = Schema::hasTable('tests') && Schema::hasTable('test_assignments')
+            ? Test::query()
+                ->where('status', 'published')
+                ->whereIn('id', function ($query) use ($user) {
+                    $query->select('test_id')
+                        ->from('test_assignments')
+                        ->where('participant_id', $user->id)
+                        ->whereIn('status', ['assigned', 'in_progress']);
+                })
+                ->latest()
+                ->limit(5)
+                ->get(['id', 'title', 'test_type', 'duration_minutes'])
             : collect();
 
         return view('dashboards.participant', compact('assignments', 'availableAssessments', 'availableTests'));
@@ -103,37 +114,7 @@ class DashboardController extends Controller
 
     public function examineePerformance(Request $request, ?User $participant = null): View
     {
-        $currentUser = $request->user();
-        $canViewOthers = in_array($currentUser->role, ['admin', 'manager', 'assessor'], true);
-
-        // If a participant is passed via route, respect it only for privileged roles
-        if ($participant && ! $canViewOthers) {
-            $participant = $currentUser;
-        }
-
-        // If no participant from route, optionally pick from query param (for dropdown)
-        if (! $participant) {
-            $participantId = (int) $request->query('participant_id', 0);
-
-            if ($canViewOthers && $participantId > 0) {
-                $participant = User::query()
-                    ->where('role', 'participant')
-                    ->find($participantId);
-            }
-
-            if (! $participant) {
-                $participant = $currentUser;
-            }
-        }
-
-        // Build participant list (for selector) for privileged roles
-        $participantsList = collect();
-        if ($canViewOthers) {
-            $participantsList = User::query()
-                ->where('role', 'participant')
-                ->orderByRaw('COALESCE(full_name, username)')
-                ->get(['id', 'full_name', 'username', 'department']);
-        }
+        [$participant, $participantsList] = $this->resolveExamineeParticipant($request, $participant);
 
         // Get overall evaluation score (0-100%)
         $overallScore = $this->calculateOverallScore($participant);
@@ -147,14 +128,81 @@ class DashboardController extends Controller
         // Get performance trends over time (for bottom-right chart)
         $performanceTrends = $this->getPerformanceTrends($participant);
 
+        // Get test attempts for statistics cards and recent results table
+        $testAttempts = $this->getTestAttempts($participant);
+
         return view('dashboards.examinee-performance', compact(
             'participant',
             'participantsList',
             'overallScore',
             'categoryScores',
             'iqTestResults',
-            'performanceTrends'
+            'performanceTrends',
+            'testAttempts'
         ));
+    }
+
+    public function examineePerformancePdf(Request $request, ?User $participant = null)
+    {
+        [$participant] = $this->resolveExamineeParticipant($request, $participant);
+
+        $overallScore = $this->calculateOverallScore($participant);
+        $categoryScores = $this->getCategoryScores($participant);
+        $iqTestResults = $this->getIQTestResults($participant);
+        $performanceTrends = $this->getPerformanceTrends($participant);
+        $testAttempts = $this->getTestAttempts($participant);
+
+        $chartImages = [
+            'overall' => (string) $request->input('chart_overall', ''),
+            'category' => (string) $request->input('chart_category', ''),
+            'trend' => (string) $request->input('chart_trend', ''),
+        ];
+
+        $filename = 'Performance_Report_' . str_replace(' ', '_', $participant->full_name ?? $participant->username) . '_' . date('Y-m-d') . '.pdf';
+
+        return Pdf::loadView('dashboards.examinee-performance-pdf', compact(
+            'participant',
+            'overallScore',
+            'categoryScores',
+            'iqTestResults',
+            'performanceTrends',
+            'testAttempts',
+            'chartImages'
+        ))->setPaper('a4', 'portrait')->download($filename);
+    }
+
+    protected function resolveExamineeParticipant(Request $request, ?User $participant = null): array
+    {
+        $currentUser = $request->user();
+        $canViewOthers = in_array($currentUser->role, ['admin', 'manager', 'assessor'], true);
+
+        if ($participant && ! $canViewOthers) {
+            $participant = $currentUser;
+        }
+
+        if (! $participant) {
+            $participantId = (int) $request->input('participant_id', $request->query('participant_id', 0));
+
+            if ($canViewOthers && $participantId > 0) {
+                $participant = User::query()
+                    ->where('role', 'participant')
+                    ->find($participantId);
+            }
+
+            if (! $participant) {
+                $participant = $currentUser;
+            }
+        }
+
+        $participantsList = collect();
+        if ($canViewOthers) {
+            $participantsList = User::query()
+                ->where('role', 'participant')
+                ->orderByRaw('COALESCE(full_name, username)')
+                ->get(['id', 'full_name', 'username', 'department']);
+        }
+
+        return [$participant, $participantsList];
     }
 
     protected function calculateOverallScore(User $participant): float
@@ -184,7 +232,7 @@ class DashboardController extends Controller
             $testScores = DB::table('test_results as tr')
                 ->join('test_assignments as ta', 'ta.id', '=', 'tr.test_assignment_id')
                 ->where('ta.participant_id', $participant->id)
-                ->where('ta.status', 'graded')
+                ->whereIn('ta.status', ['submitted', 'graded'])
                 ->whereNotNull('tr.percentage')
                 ->pluck('tr.percentage')
                 ->map(fn($score) => (float) $score);
@@ -279,6 +327,55 @@ class DashboardController extends Controller
         }
 
         if (empty($categoryTotals)) {
+            // Fallback: categorical test results from new test system
+            if (Schema::hasTable('test_results') && Schema::hasTable('test_assignments') && Schema::hasTable('tests') && Schema::hasTable('test_categories')) {
+                $testResults = DB::table('test_results as tr')
+                    ->join('test_assignments as ta', 'ta.id', '=', 'tr.test_assignment_id')
+                    ->join('tests as t', 't.id', '=', 'ta.test_id')
+                    ->where('ta.participant_id', $participant->id)
+                    ->whereIn('ta.status', ['submitted', 'graded'])
+                    ->where('t.test_type', 'categorical')
+                    ->whereNotNull('tr.category_scores')
+                    ->select('tr.category_scores')
+                    ->get();
+
+                $categoryTotals = [];
+                foreach ($testResults as $result) {
+                    $scores = json_decode($result->category_scores, true);
+                    if (! is_array($scores)) {
+                        continue;
+                    }
+                    foreach ($scores as $catId => $count) {
+                        $categoryTotals[$catId] = ($categoryTotals[$catId] ?? 0) + (float) $count;
+                    }
+                }
+
+                if (! empty($categoryTotals)) {
+                    $categories = DB::table('test_categories')
+                        ->whereIn('id', array_keys($categoryTotals))
+                        ->get(['id', 'name', 'color'])
+                        ->keyBy('id');
+
+                    $labels = [];
+                    $values = [];
+                    $colors = [];
+                    $max = max($categoryTotals);
+
+                    foreach ($categoryTotals as $catId => $total) {
+                        $category = $categories[$catId] ?? null;
+                        $labels[] = $category->name ?? __('Category :id', ['id' => $catId]);
+                        $values[] = $max > 0 ? round(($total / $max) * 100, 1) : 0;
+                        $colors[] = $category->color ?? '#B68A35';
+                    }
+
+                    return [
+                        'labels' => $labels,
+                        'values' => $values,
+                        'colors' => $colors,
+                    ];
+                }
+            }
+
             return ['labels' => [], 'values' => [], 'colors' => []];
         }
 
@@ -311,7 +408,7 @@ class DashboardController extends Controller
                 ->join('tests as t', 't.id', '=', 'ta.test_id')
                 ->join('test_results as tr', 'tr.test_assignment_id', '=', 'ta.id')
                 ->where('ta.participant_id', $participant->id)
-                ->where('ta.status', 'graded')
+                ->whereIn('ta.status', ['submitted', 'graded'])
                 ->where('t.test_type', 'percentile')
                 ->whereNotNull('tr.total_marks_obtained')
                 ->select(
@@ -367,36 +464,68 @@ class DashboardController extends Controller
 
     protected function getPerformanceTrends(User $participant): array
     {
-        if (!Schema::hasTable('assessment_participants')) {
+        $hasAssessments = Schema::hasTable('assessment_participants');
+        $hasTests = Schema::hasTable('test_results') && Schema::hasTable('test_assignments') && Schema::hasTable('tests');
+
+        if (! $hasAssessments && ! $hasTests) {
             return ['labels' => [], 'values' => []];
         }
 
-        // Get performance over last 6 months
-        $trends = DB::table('assessment_participants as ap')
-            ->where('ap.participant_id', $participant->id)
-            ->where('ap.status', 'completed')
-            ->whereNotNull('ap.score')
-            ->where('ap.updated_at', '>=', now()->subMonths(6))
-            ->select(
-                DB::raw('DATE_FORMAT(ap.updated_at, "%Y-%m") as month'),
-                DB::raw('AVG(ap.score) as avg_score'),
-                DB::raw('COUNT(*) as test_count')
-            )
-            ->groupBy('month')
-            ->orderBy('month')
-            ->get();
+        $trendBuckets = [];
+        $cutoff = now()->subMonths(6);
+
+        if ($hasAssessments) {
+            $assessmentScores = DB::table('assessment_participants as ap')
+                ->where('ap.participant_id', $participant->id)
+                ->where('ap.status', 'completed')
+                ->whereNotNull('ap.score')
+                ->where('ap.updated_at', '>=', $cutoff)
+                ->select(
+                    DB::raw('DATE_FORMAT(ap.updated_at, "%Y-%m") as month'),
+                    'ap.score'
+                )
+                ->get();
+
+            foreach ($assessmentScores as $row) {
+                $score = (float) $row->score;
+                if ($score < 20) {
+                    $score = $score * 10;
+                }
+                $trendBuckets[$row->month][] = $score;
+            }
+        }
+
+        if ($hasTests) {
+            $testScores = DB::table('test_results as tr')
+                ->join('test_assignments as ta', 'ta.id', '=', 'tr.test_assignment_id')
+                ->join('tests as t', 't.id', '=', 'ta.test_id')
+                ->where('ta.participant_id', $participant->id)
+                ->whereIn('ta.status', ['submitted', 'graded'])
+                ->whereNotNull('tr.percentage')
+                ->where('tr.completed_at', '>=', $cutoff)
+                ->select(
+                    DB::raw('DATE_FORMAT(tr.completed_at, "%Y-%m") as month'),
+                    'tr.percentage'
+                )
+                ->get();
+
+            foreach ($testScores as $row) {
+                $trendBuckets[$row->month][] = (float) $row->percentage;
+            }
+        }
+
+        if (empty($trendBuckets)) {
+            return ['labels' => [], 'values' => []];
+        }
+
+        ksort($trendBuckets);
 
         $labels = [];
         $values = [];
 
-        foreach ($trends as $trend) {
-            $labels[] = \Carbon\Carbon::createFromFormat('Y-m', $trend->month)->translatedFormat('M Y');
-            $score = (float) $trend->avg_score;
-            // Convert old 0-10 scale scores to 0-100 scale
-            if ($score < 20) {
-                $score = $score * 10;
-            }
-            $values[] = round($score, 2);
+        foreach ($trendBuckets as $month => $scores) {
+            $labels[] = \Carbon\Carbon::createFromFormat('Y-m', $month)->translatedFormat('M Y');
+            $values[] = round(collect($scores)->avg(), 2);
         }
 
         return [
@@ -506,7 +635,16 @@ class DashboardController extends Controller
             });
         }
 
-        return $rows;
+        $excludeTitles = [
+            'team collaboration exercise',
+            'leadership interview assessment',
+            'psychometric assessment - q1 2025',
+        ];
+
+        return $rows->filter(function ($row) use ($excludeTitles) {
+            $label = strtolower($row->title ?? $row->type ?? '');
+            return ! in_array($label, $excludeTitles, true);
+        })->values();
     }
 
     protected function participantEvaluations(?string $statusFilter = null, ?int $participantId = null): Collection
@@ -784,5 +922,64 @@ class DashboardController extends Controller
         }
 
         return collect($assignments);
+    }
+
+    protected function getTestAttempts(User $participant): Collection
+    {
+        if (!Schema::hasTable('test_assignments') || !Schema::hasTable('tests')) {
+            return collect();
+        }
+
+        // Get all test assignments for this participant with their test info
+        $selectColumns = [
+            'ta.id',
+            'ta.test_id',
+            'ta.status',
+            'ta.created_at',
+            't.title',
+            't.test_type',
+            't.total_marks',
+            't.passing_marks',
+            't.duration_minutes',
+            'tr.total_marks_obtained',
+            'tr.percentage as score_percentage',
+            'tr.completed_at',
+        ];
+
+        if (Schema::hasColumn('test_assignments', 'started_at')) {
+            $selectColumns[] = 'ta.started_at';
+        } else {
+            $selectColumns[] = DB::raw('ta.assigned_at as started_at');
+        }
+
+        $assignments = DB::table('test_assignments as ta')
+            ->join('tests as t', 't.id', '=', 'ta.test_id')
+            ->leftJoin('test_results as tr', 'tr.test_assignment_id', '=', 'ta.id')
+            ->where('ta.participant_id', $participant->id)
+            ->select($selectColumns)
+            ->orderByDesc('ta.created_at')
+            ->get();
+
+        // Transform to objects with nested test info for the view
+        return $assignments->map(function ($assignment) {
+            $obj = new \stdClass();
+            $obj->id = $assignment->id;
+            $isAutoScored = $assignment->status === 'submitted' && $assignment->score_percentage !== null;
+            $obj->status = ($assignment->status === 'graded' || $isAutoScored) ? 'completed' : $assignment->status;
+            $obj->started_at = $assignment->started_at;
+            $obj->completed_at = $assignment->completed_at;
+            $obj->score_percentage = $assignment->score_percentage ?? 0;
+
+            // Create nested test object
+            $obj->test = new \stdClass();
+            $obj->test->id = $assignment->test_id;
+            $obj->test->title = $assignment->title;
+            $obj->test->test_type = $assignment->test_type;
+            $obj->test->total_marks = $assignment->total_marks;
+            $obj->test->passing_marks = $assignment->passing_marks;
+            $obj->test->duration_minutes = $assignment->duration_minutes;
+
+            return $obj;
+        });
     }
 }

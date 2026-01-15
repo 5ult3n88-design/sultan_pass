@@ -38,8 +38,8 @@
     </div>
 
     @if(auth()->check() && auth()->user()->role === 'manager')
-        <div class="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-            {{ __('You have read-only access to participant information. Contact an administrator to make changes.') }}
+        <div class="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+            {{ __('You can now edit participant details and roles.') }}
         </div>
     @endif
 
@@ -53,6 +53,7 @@
                     <th class="px-5 py-3">{{ __('Department') }}</th>
                     <th class="px-5 py-3">{{ __('Rank') }}</th>
                     <th class="px-5 py-3">{{ __('Status') }}</th>
+                    <th class="px-5 py-3 text-right">{{ __('Actions') }}</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-white/5 text-slate-100">
@@ -68,10 +69,16 @@
                                 {{ ucfirst($participant->status) }}
                             </span>
                         </td>
+                        <td class="px-5 py-4 text-right">
+                            <a href="{{ route('manager.users.edit', $participant) }}"
+                                class="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-white/10">
+                                {{ __('Edit') }}
+                            </a>
+                        </td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="6" class="px-5 py-10 text-center text-sm text-slate-300">
+                        <td colspan="7" class="px-5 py-10 text-center text-sm text-slate-300">
                             {{ __('No participants found.') }}
                         </td>
                     </tr>

@@ -9,10 +9,6 @@
             <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-400">{{ __('Assessments') }}</h2>
             <p class="text-xs text-slate-500">{{ __('Create and launch new tests for your organization.') }}</p>
         </div>
-        <a href="{{ route('assessments.create') }}" class="inline-flex items-center gap-2 rounded-lg bg-uae-gold-300/90 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-uae-gold-300">
-            <span class="text-base">+</span>
-            {{ __('Create assessment') }}
-        </a>
     </div>
 
     <div class="grid gap-6 lg:grid-cols-4">
@@ -225,4 +221,3 @@
         </div>
     </div>
 @endsection
-
